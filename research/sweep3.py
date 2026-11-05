@@ -2,13 +2,12 @@ from cv import cv, summarize
 import pandas as pd
 BIG = {"CAP": {"HPPO": 800, "BNKY": 2400, "CRRT": 2400, "BRRY": 580}}
 configs = [
-    ("make1.5", {"take_on": 0, "make_edge": 1.5}, None),
     ("make2", {"take_on": 0, "make_edge": 2}, None),
     ("make2.5", {"take_on": 0, "make_edge": 2.5}, None),
     ("make2 sz1.5", {"take_on": 0, "make_edge": 2, "size_scale": 1.5}, None),
-    ("make2 bigcap", {"take_on": 0, "make_edge": 2}, BIG),
-    ("make2+take6", {"make_edge": 2, "take_edge": 6}, None),
-    ("make2+take10", {"make_edge": 2, "take_edge": 10}, None),
+    ("make2.5 sz1.5", {"take_on": 0, "make_edge": 2.5, "size_scale": 1.5}, None),
+    ("make3 sz1.5", {"take_on": 0, "make_edge": 3, "size_scale": 1.5}, None),
+    ("make2.5 sz1.5 take6", {"make_edge": 2.5, "size_scale": 1.5, "take_edge": 6}, None),
 ]
 if __name__ == "__main__":
     rows = []
