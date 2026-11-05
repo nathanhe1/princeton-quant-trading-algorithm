@@ -190,9 +190,18 @@ class Alpha(Strategy):
                 e = float(self.param("make_edge")) * mult
                 bid = min(math.floor(centre - e), top.ask_px - 1)
                 ask = max(math.ceil(centre + e), top.bid_px + 1)
+                if bid >= ask:  # only possible when the book is one tick wide
+                    continue
                 size = max(1, int(self.QUOTE[s] * scale))
-                self.keep_quote(s, Side.BUY, bid, size, lw, sw)
-                self.keep_quote(s, Side.SELL, ask, size, lw, sw)
+                # Never cross our own resting order: our messages are processed in the order
+                # sent, so move the side that is getting out of the way first.
+                cur_ask = min((o.price for o in self.open_orders(s) if o.side is Side.SELL), default=None)
+                if cur_ask is not None and bid >= cur_ask:
+                    self.keep_quote(s, Side.SELL, ask, size, lw, sw)
+                    self.keep_quote(s, Side.BUY, bid, size, lw, sw)
+                else:
+                    self.keep_quote(s, Side.BUY, bid, size, lw, sw)
+                    self.keep_quote(s, Side.SELL, ask, size, lw, sw)
 
     def keep_quote(self, s, side, price, size, lw, sw) -> None:
         mine = [o for o in self.open_orders(s) if o.side is side]

@@ -21,7 +21,9 @@ def features(n):
 if __name__ == "__main__":
     out = sys.argv[1]; H = int(sys.argv[2]) if len(sys.argv) > 2 else 120
     ss = sessions()
-    if len(sys.argv) > 4: ss = [s for s in ss if sys.argv[3] <= s <= sys.argv[4]]
+    if len(sys.argv) > 4 and sys.argv[3] == "ex":
+        ss = [s for s in ss if not (sys.argv[4] <= s <= sys.argv[5])]
+    elif len(sys.argv) > 4: ss = [s for s in ss if sys.argv[3] <= s <= sys.argv[4]]
     data = [features(n) for n in ss]
     cols = list(data[0][0].columns)
     coef = {}
