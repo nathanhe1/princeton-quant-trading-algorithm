@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Backtest alpha on s01",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pqt_client.cli",
+      "args": ["backtest", "strategies/alpha.py", "--data", "data", "--name", "s01"],
+      "cwd": "${workspaceFolder}",
+      "justMyCode": true
+    },
+    {
+      "name": "Cross-validate alpha (all 24 sessions)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/research/final_cv.py",
+      "cwd": "${workspaceFolder}/research"
+    },
+    {
+      "name": "Run current file",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "cwd": "${fileDirname}"
+    }
+  ]
+}
