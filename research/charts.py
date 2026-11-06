@@ -48,7 +48,7 @@ plt.rcParams.update(
         "axes.labelcolor": INK2,
         "axes.titlecolor": INK,
         "axes.titlesize": 11,
-        "axes.titleweight": "semibold",
+        "axes.titleweight": "bold",
         "axes.titlelocation": "left",
         "axes.spines.top": False,
         "axes.spines.right": False,
@@ -64,6 +64,7 @@ plt.rcParams.update(
         "savefig.dpi": 200,
         "savefig.facecolor": SURFACE,
         "savefig.bbox": "tight",
+        "text.parse_math": False,  # "$" is currency here, not mathtext
     }
 )
 
@@ -80,7 +81,7 @@ def dollar_axis(ax, axis="x"):
 
 
 def suptitle(fig, title, subtitle):
-    fig.text(0.0, 1.06, title, fontsize=13, fontweight="semibold", color=INK, transform=fig.transFigure)
+    fig.text(0.0, 1.06, title, fontsize=13, fontweight="bold", color=INK, transform=fig.transFigure)
     fig.text(0.0, 1.015, subtitle, fontsize=9.5, color=INK2, transform=fig.transFigure)
 
 
@@ -95,12 +96,12 @@ def strip(ax, groups, labels, highlight=None):
         ax.text(
             xmax * 1.04, row, f"{money(values.mean())}   worst {money(values.min())}",
             va="center", fontsize=9, color=INK if labels[row] == highlight else INK2,
-            fontweight="semibold" if labels[row] == highlight else "normal",
+            fontweight="bold" if labels[row] == highlight else "normal",
         )
     ax.set_yticks(range(len(groups)), labels)
     for tick in ax.get_yticklabels():
         if tick.get_text() == highlight:
-            tick.set_fontweight("semibold")
+            tick.set_fontweight("bold")
             tick.set_color(INK)
     ax.invert_yaxis()
     ax.axvline(0, color=AXIS, lw=1, zorder=1)
@@ -164,7 +165,7 @@ def stress_by_symbol():
     suptitle(
         fig,
         "Where the edge survives: by symbol and fill scenario",
-        "Blue = positive markout, red = negative, gray = zero. Each panel has its own scale.",
+        "Darker blue = more markout (a red cell would mean negative). Each panel has its own scale.",
     )
     fig.savefig(f"{OUT}/02_stress_by_symbol.png")
     plt.close(fig)
@@ -218,18 +219,20 @@ def versions():
         x = np.arange(len(d))
         ax.bar(x, d, width=0.62, color=[BLUE if v >= 0 else RED for v in d])
         ax.axhline(0, color=AXIS, lw=1)
-        ax.axhline(d.mean(), color=INK, lw=1.4, ls=(0, (1, 2)))
-        ax.text(len(d) - 0.4, d.mean(), f" mean {'+' if d.mean() >= 0 else ''}{money(d.mean())}", va="center", fontsize=9, color=INK)
+        ax.plot([-0.5, len(d) - 0.5], [d.mean()] * 2, color=INK, lw=1.4, ls=(0, (1, 2)))
+        ax.text(len(d) - 0.3, d.mean(), f"mean {'+' if d.mean() >= 0 else '-'}{money(abs(d.mean()))}", va="center", ha="left", fontsize=9, color=INK)
         dollar_axis(ax, "y")
         ax.spines["bottom"].set_visible(False)
         ax.tick_params(axis="x", length=0)
         better = int((d > 0).sum())
         ax.set_title(
-            f"{SHORT[scenario]}: v1 {money(p['alpha_v1'].mean())} → current {money(p['alpha (current)'].mean())} "
-            f"per session; worst {money(p['alpha_v1'].min())} → {money(p['alpha (current)'].min())}; better in {better}/24"
+            f"{SHORT[scenario]}\n"
+            f"mean {money(p['alpha_v1'].mean())} → {money(p['alpha (current)'].mean())},  "
+            f"worst {money(p['alpha_v1'].min())} → {money(p['alpha (current)'].min())},  better in {better}/24 sessions",
+            fontsize=10, linespacing=1.5,
         )
         ax.set_xticks(x, d.index, fontsize=8.5)
-        ax.set_xlim(-0.6, len(d) + 1.8)
+        ax.set_xlim(-0.6, len(d) + 2.2)
     suptitle(
         fig,
         "Skew change (alpha_v1 → current): change in markout per session",
