@@ -1,0 +1,85 @@
+# Handoff: PQT strategy, where it stands and what to build next
+
+You're picking up `strategies/alpha.py`, our market maker for the PQT competition. It quotes all
+four symbols around a 60-second fair-value forecast. The full write-up of the last iteration is
+[`research/REPORT.md`](REPORT.md); the task list is [`PROMPTS.md`](../PROMPTS.md) (prompts 0–8).
+Read `research/NOTES.md` and STRATEGY_GUIDE.md sections 1, 6, 7 and 11 first.
+
+## State in one paragraph
+
+The forecast is a linear model (ridge, 33 features: price changes, signed trade flow, micro−mid,
+and BRRY's gap to its ETF value) predicting the mid 120 batches ahead. Held-out R² is 0.08–0.29 by
+symbol, only about 0.02 below in-sample. The strategy earns **$5,600/session** out of sample under
+the backtest's fill rule. Under a realistic fill model (30% of trade size, 2 ticks through, real
+pick-offs) that falls to **$1,540, and about $1,000** once you remove a look-ahead in the stress
+test. **Pick-offs cost about 2.5¢/share, more than our 1.9¢ maker edge.** Live fill rate and
+adverse selection matter more than model accuracy. The default settings survived a nested-CV
+re-tune. News handling only steps aside and protects the features; it does not trade news.
+
+## How to work
+
+```bash
+. .venv/bin/activate          # Python 3.12; run research scripts from research/
+cd research
+python final_cv.py            # base 3-fold out-of-sample score (should print $5,600 mean)
+python final_compare.py       # before/after table: base, stress, synthetic news (~2 min)
+```
+
+- **Evaluate with `research/evalx.py`.** `evaluate(path, coefs="raw", scenario=..., news=...)`
+  covers any strategy file, any stress scenario from `stress.py`, and synthetic news (`news={"D":
+  repricing_batches}`). It runs on all cores, about 10 s for 24 sessions. `coefs="raw"` is the live
+  model; the `*_std.json` files are a rejected variant.
+- **Score markouts, never the backtest's "estimated PnL".** Report mean, worst session, maker
+  ¢/share and shares, under **base and `share=0.3+through=2+adverse`**. Accept a change only if it
+  helps the stressed case without costing base more than 10%.
+- **Tune only with nested CV** (`tune_nested.py` is the template). Choosing on the sessions you
+  report on inflated the last pick's gain by 3×.
+- **Noise:** stress scenarios use seeded random rounding that depends on the fill path. Differences
+  under about $60/session need paired, per-session comparison over several seeds (set the
+  `STRESS_SEED` environment variable).
+- **Before editing `alpha.py`, copy it to `strategies/archive/alpha_vN.py`** (v2 is the latest).
+  Coefficients go in through `fit.py` → `bake.py`; `fit.py`'s default is the live fit.
+
+## Gotchas
+
+- **macOS multiprocessing:** any script that calls `evaluate()` or `cv()` needs an `if __name__ ==
+  "__main__":` guard, or it crashes with `BrokenProcessPool`.
+- **Units:** prices are integer cents. Flow features are in thousands of shares, so compare
+  coefficients by effect, not size.
+- **The `adverse` stress rule looks ahead.** It decides pick-offs from the mid 120 batches later,
+  so it leaks the future into our inventory and flatters any inventory-driven logic. Check
+  per-share results on at-price vs other fills (see REPORT.md section 2) before believing a gain
+  under it.
+- **The backtest has no news, halts or competitors.** `evalx.py` injects synthetic news with
+  invented jump sizes and repricing speeds; treat it as a sensitivity test.
+- **HPPO = 1 BNKY + 2 BRRY** exactly (true value). Conversion costs $0.02/share and scores nothing
+  itself.
+- **The message budget is 20 per batch for the whole team.**
+
+## What to build next, in order
+
+1. **Sandbox validation (prompt 6).** It needs `PQT_API_KEY`. Above all, record real news items,
+   how long the market takes to reprice after them, and our live fill rate. Those three numbers
+   decide `news_pause`, whether the news rebase helps (it loses about $39/session if repricing
+   takes 30 s), and how wide `make_edge` should be.
+2. **News trading (prompt 5).** This is the largest untapped source of credited markout. Hook
+   points in `alpha.py`:
+   - `on_news` for the read;
+   - `rebase()`, which already removes the jump from the features;
+   - `FAIR_CAP`: a news-driven fair shift must bypass it or raise it.
+
+   Test with `evalx` news runs, plus unit tests on made-up headlines. Add a GUI switch to turn it
+   off.
+3. **Adverse-selection defence (prompt 3).** Pick-offs cost more than our edge. Try quoting only the
+   side the forecast favours when |fair − micro| is large; widen the other side. Accept a change on
+   maker ¢/share under stress, not just dollars.
+4. **ETF identity (prompts 2 and 4).** HPPO's and BNKY's forecasts don't use 1 BNKY + 2 BRRY;
+   tying the three together, or an arbitrage leg, is untested.
+5. **Hardening and runbook (prompt 7)** before R1, then the final review (prompt 8).
+
+## Rejected, don't redo without a new reason
+
+- **Scaled ridge with nested-CV penalty:** +0.003 R², but −$57/session under stress.
+- **180 or 240-batch targets:** lower R² and lower markout.
+- **`make_edge` 2.0:** +$9 out of sample under stress, which is noise.
+- **`news_pause` 30:** mixed results across repricing speeds.
