@@ -362,7 +362,26 @@ and a paired test on the sessions CSV.
 
 Worst sessions are s05, s01 and s04 in every case: early sessions, possibly a quieter regime.
 
-## Appendix B: reproduce
+## Appendix B: worked comparison (v2 vs v3, same harness)
+
+`scorecards/alpha_v2.md` vs `scorecards/alpha_v3.md`, paired by session. The difference is v3 − v2
+in $/session, with its standard error over the 24 paired sessions.
+
+| case | v2 | v3 | difference (± se) | v3 better in | worst session v2 → v3 |
+|---|---|---|---|---|---|
+| base | $5,600 | $5,600 | $0 | – | $3,382 → $3,382 |
+| realistic stress | $1,540 | $1,540 | $0 | – | $473 → $473 |
+| harshest stress | $788 | $788 | $0 | – | −$4 → −$4 |
+| news, instant repricing | $5,137 | $5,387 | **+$249 ± 42** | 22/24 | $3,063 → $3,115 |
+| news, 10 s repricing | $5,391 | $5,455 | +$64 ± 36 | 17/24 | $3,441 → $3,492 |
+| news, 30 s repricing | $5,500 | $5,461 | −$39 ± 29 | 11/24 | $3,474 → $3,301 |
+| realistic + news (10 s) | $1,644 | $1,670 | +$26 ± 28 | 13/24 | $673 → $807 |
+
+Reading it: v3 is identical without news (the cap never binds). It is clearly better when news
+reprices instantly and probably better at 10 s; at 30 s and under stress plus news the
+differences are within noise. Use this table format for any two models.
+
+## Appendix C: reproduce
 
 From `research/`, with `../.venv/bin/python` (Python 3.12):
 
