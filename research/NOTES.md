@@ -54,3 +54,19 @@ through our own ask self-traded ($0.10 penalty); now the side that is getting ou
 - Stress the fill model: haircut maker fills, require trades ≥ 2 ticks through, and re-tune `make_edge`.
 - News parser once the sandbox's news format is visible.
 - Per-symbol edge and size tuning; per-session regime (volatility) scaling.
+
+## 2026-11 research update
+- `research/model.py` now compares the 120-, 180- and 240-batch targets with fold-specific
+  coefficients and strategy markouts. The 120-batch model remains best: mean proxy markout
+  $5,291/session versus $4,474 (180) and $4,081 (240); its held-out R² is 0.118 HPPO,
+  0.078 BNKY, 0.158 CRRT and 0.286 BRRY. No fair-value coefficients were changed.
+- `research/stress.py` implements seeded trade-size haircuts, stricter through-price fills and a
+  deliberately adverse at-price fill. Its base scenario reproduces `final_cv.py`.
+- Skew was tuned only on s01-s08 and checked separately on s17-s24 and s09-s16. Increasing all
+  four per-symbol skew values by 50% improved the realistic stress mean on both check sets without
+  reducing base markout. `strategies/alpha.py` now uses that setting; the prior strategy is saved
+  as `strategies/archive/alpha_v1.py`.
+- After the change, fold-based 120-batch markout is $5,600/session, worst $3,382, with all 24
+  sessions positive. The baseline was $5,291/session, worst $3,215. Maker markout changed from
+  1.96¢ to 1.93¢ per share, so the dollar gain comes from higher filled volume, not higher unit
+  edge. Recheck under the completed stress run before relying on the stressed result.

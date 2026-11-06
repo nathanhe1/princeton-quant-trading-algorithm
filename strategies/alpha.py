@@ -77,7 +77,7 @@ class Alpha(Strategy):
     CLIP = {"HPPO": 100, "BNKY": 300, "CRRT": 300, "BRRY": 60}
     QUOTE = {"HPPO": 50, "BNKY": 150, "CRRT": 150, "BRRY": 30}
     EDGE_MULT = {"HPPO": 1.0, "BNKY": 0.5, "CRRT": 0.6, "BRRY": 1.0}
-    SKEW = {"HPPO": 3.0, "BNKY": 1.0, "CRRT": 1.5, "BRRY": 3.0}  # cents of lean at CAP
+    SKEW = {"HPPO": 4.5, "BNKY": 1.5, "CRRT": 2.25, "BRRY": 4.5}  # cents of lean at CAP
     model = MODEL
     params_override: dict | None = None  # for research sweeps
 
