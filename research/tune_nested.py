@@ -1,7 +1,7 @@
 """Nested CV for the strategy knobs (make_edge, size_scale, take_edge).
 
 For each outer fold k (8 test sessions): every config is scored on the other 16 sessions, each
-session with coefficients fit on the remaining single fold only (only{j}_std.json), so neither the
+session with coefficients fit on the remaining single fold only (only{j}.json), so neither the
 coefficients nor the choice ever see fold k. The pick maximises the realistic stressed mean subject
 to base >= 90% of the default's base on the same 16 sessions. The pick is then scored on fold k with
 the usual fold coefficients. Output: honest out-of-sample before/after.
@@ -26,7 +26,7 @@ def key(c):
 
 def inner_pairs(k):
     i, j = [x for x in (1, 2, 3) if x != k]
-    return [(f"only{j}_std.json", n) for n in pick(FOLD[i])] + [(f"only{i}_std.json", n) for n in pick(FOLD[j])]
+    return [(f"only{j}.json", n) for n in pick(FOLD[i])] + [(f"only{i}.json", n) for n in pick(FOLD[j])]
 
 
 def main():
@@ -49,7 +49,7 @@ def main():
         floor = 0.9 * inner(DEFAULT, "base")
         ok = [c for c in GRID if inner(c, "base") >= floor]
         best = max(ok, key=lambda c: inner(c, REAL))
-        test = [(f"fold{k}_std.json", n) for n in pick(FOLD[k])]
+        test = [(f"fold{k}.json", n) for n in pick(FOLD[k])]
         for label, c in (("default", DEFAULT), ("picked", best)):
             for scen in ("base", REAL):
                 s, _ = evaluate_pairs(NEW, test, scenario=scen, over=c)

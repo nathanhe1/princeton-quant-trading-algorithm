@@ -125,7 +125,7 @@ def _one(job):
         return original_send(self, message)
 
     scenario = next(s for s in stress.SCENARIOS if s.name == scenario_name)
-    original_fills = stress._install(scenario, 2026) if scenario_name != "base" else None
+    original_fills = stress._install(scenario, int(os.environ.get("STRESS_SEED", 2026))) if scenario_name != "base" else None
     v2bt._Feed.send = send
     try:
         strat = load_cls(path)()
