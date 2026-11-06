@@ -247,7 +247,8 @@ def horizons():
     width = 0.24
     x = np.arange(len(SYMS))
     for i, h in enumerate(hs):
-        a.bar(x + (i - 1) * (width + 0.02), r2.loc[h, SYMS], width=width, color=SERIES[i], label=f"{h} batches")
+        bars = a.bar(x + (i - 1) * (width + 0.02), r2.loc[h, SYMS], width=width, color=SERIES[i], label=f"{h} batches")
+        a.bar_label(bars, fmt="%.2f", fontsize=7, color=INK2, padding=2)
     a.set_xticks(x, SYMS)
     a.tick_params(axis="x", length=0)
     a.set_title("Held-out R² of the fair-value model")
