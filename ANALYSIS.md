@@ -228,6 +228,35 @@ strategy whose gain under `adverse` comes from inventory-driven quoting should b
 | Skew change v1 → v2 | tuned on s01–s08 only; held up on s09–s24 (+$310 base, better in 24/24 sessions) |
 | Stability across sessions | base: 24/24 positive, sd $1,012; realistic: 24/24 positive, worst $473 |
 
+### Train vs test
+
+`research/train_test.py`. Each fold's model is scored on the 16 sessions it was fitted on (train)
+and the 8 it never saw (test). The chronological split (train s01–s16, test s17–s24) is fold 3.
+R² is pooled over the part's sessions; markouts are $/session.
+
+| split | part | R² HPPO | R² BNKY | R² CRRT | R² BRRY | base mean | base worst | realistic mean | realistic worst | realistic maker ¢/sh |
+|---|---|---|---|---|---|---|---|---|---|---|
+| fold 1 (test s01–s08) | train | 0.152 | 0.126 | 0.182 | 0.302 | $5,892 | $4,649 | $1,837 | $1,146 | 1.46 |
+| | **test** | 0.103 | **0.022** | 0.159 | 0.306 | $5,039 | $3,382 | $1,281 | $473 | 1.15 |
+| fold 2 (test s09–s16) | train | 0.147 | 0.114 | 0.178 | 0.318 | $5,333 | $3,406 | $1,508 | $502 | 1.35 |
+| | **test** | 0.119 | 0.076 | 0.163 | 0.274 | $6,001 | $5,467 | $1,779 | $1,125 | 1.38 |
+| fold 3 = chronological (test s17–s24) | train | 0.143 | 0.085 | 0.185 | 0.322 | $5,575 | $3,368 | $1,539 | $402 | 1.24 |
+| | **test** | 0.131 | 0.124 | 0.154 | 0.276 | $5,761 | $4,564 | $1,561 | $905 | 1.35 |
+| **average** | train | 0.147 | 0.108 | 0.182 | 0.314 | $5,600 | – | $1,628 | – | 1.35 |
+| | **test** | 0.118 | 0.074 | 0.159 | 0.285 | $5,600 | – | $1,540 | – | 1.29 |
+
+- **R² drops on test for every symbol:** about 0.03 for HPPO, BNKY and BRRY, and 0.02 for CRRT.
+  BNKY is the least stable; in fold 1 its test R² is only 0.022.
+- **Base markout shows no train/test gap** ($5,600 both). The fitting noise in the coefficients does
+  not turn into better trading on the training sessions.
+- **Realistic stress shows a small gap:** $1,628 train vs $1,540 test (−5%), and maker edge 1.35¢
+  vs 1.29¢. That is the honest size of the overfit at the strategy level.
+- **Session difficulty matters more than train vs test.** s01–s08 are the hardest sessions in any
+  role, which is why fold 1's test is lowest and fold 2's test is highest. Compare models on the
+  same sessions (paired), never across different splits.
+- **Chronological test (later sessions) is not worse than train:** $5,761 vs $5,575 base, $1,561 vs
+  $1,539 realistic. There is no sign that the relationships decay over time across the data.
+
 **Conclusion:** the reported numbers are not inflated by fitting. The dominant error is the fill
 model (section 7 and bias 1), not overfitting.
 
