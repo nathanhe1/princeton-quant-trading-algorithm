@@ -37,7 +37,7 @@ from load import DATA, SYMS
 HERE = os.path.dirname(os.path.abspath(__file__))
 H = 120
 # typical 60 s mid move (cents, std of mid(t+120) - mid(t) over all sessions); see sigma60()
-SIGMA60 = {"HPPO": 14.0, "BNKY": 6.0, "CRRT": 6.0, "BRRY": 9.0}
+SIGMA60 = {"HPPO": 12.6, "BNKY": 4.9, "CRRT": 4.9, "BRRY": 8.2}
 PROPAGATE = {"BNKY": {"BNKY": 1, "HPPO": 1}, "BRRY": {"BRRY": 1, "HPPO": 2}, "CRRT": {"CRRT": 1}}
 
 
@@ -206,3 +206,11 @@ def line(label, summ, fills):
 
 if __name__ == "__main__":
     print({k: round(v, 1) for k, v in sigma60().items()})
+
+
+def evaluate_pairs(path, pairs, scenario="base", news=None, over=None, attrs=None):
+    """Like evaluate(), for an explicit list of (coef_file, session) pairs."""
+    jobs = [(os.path.abspath(path), c, n, scenario, over, attrs, news) for c, n in pairs]
+    with ProcessPoolExecutor(os.cpu_count()) as pool:
+        out = list(pool.map(_one, jobs))
+    return pd.DataFrame([o[0] for o in out]), pd.concat([o[1] for o in out if len(o[1])])
