@@ -70,3 +70,13 @@ through our own ask self-traded ($0.10 penalty); now the side that is getting ou
   sessions positive. The baseline was $5,291/session, worst $3,215. Maker markout changed from
   1.96¢ to 1.93¢ per share, so the dollar gain comes from higher filled volume, not higher unit
   edge. Recheck under the completed stress run before relying on the stressed result.
+
+## 2026-11-05 iteration: overfitting, stress fix, news
+Full write-up: `research/REPORT.md`. In short: the model's in-sample R² is about 0.02 above
+out-of-sample; a scaled ridge with nested-CV penalty raised out-of-sample R² but lost about $57 per
+session under realistic stress, so the coefficients are unchanged. Nested CV of `make_edge` /
+`size_scale` / `take_edge` confirms the defaults (the +$9 for `make_edge` 2.0 is noise). The
+stress test's adverse rule now fills only real pick-offs: realistic is $1,540 per session, and about
+$1,000 after removing the rule's look-ahead. `alpha.py` gained `FAIR_CAP` and a news rebase (+$64 to
++$249 per session on synthetic news; −$39 if repricing takes 30 s). Previous version:
+`strategies/archive/alpha_v2.py`. The earlier figures above ($1,755 realistic) predate the fix.

@@ -10,7 +10,7 @@ coefficients fitted without it (3 folds of 8 sessions, as in `final_cv.py`). The
 | | before (v2) | after | verdict |
 |---|---|---|---|
 | Base backtest fill rule | $5,600 (worst $3,382) | $5,600 (worst $3,382) | unchanged |
-| Realistic stress (30% of size, 2 ticks through, adverse) | $1,540 (worst $473) | $1,540 (worst $473) | unchanged |
+| Realistic stress (30% of size, 2 ticks through, adverse) | $1,540 (worst $473) | $1,540 (worst $473) | unchanged; **about $1,000 after removing look-ahead** (section 2) |
 | Synthetic news, market reprices instantly | $5,137 (worst $3,063) | **$5,387** (worst $3,115) | +$249 |
 | Synthetic news, reprices over 10 s | $5,391 (worst $3,441) | **$5,455** (worst $3,492) | +$64 |
 | Synthetic news, reprices over 30 s | $5,500 (worst $3,474) | $5,461 (worst $3,301) | −$39 |
@@ -23,7 +23,9 @@ coefficients fitted without it (3 folds of 8 sessions, as in `final_cv.py`). The
    evaluation sessions, picks `make_edge` 2.0 in all three folds. Out of sample that gains only $9
    under realistic stress, which is noise, so the defaults are unchanged.
 3. **The stress test was not harsh enough.** Its "adverse" option made more money than the base
-   case. Fixed: realistic-scenario markout fell from $1,755 to $1,540 per session.
+   case. Fixed: realistic-scenario markout fell from $1,755 to $1,540 per session. Even fixed, it
+   leaks future prices into our inventory. Without that leak the realistic figure is **about
+   $1,000 per session**, and the harshest scenario's worst session is −$4.
 4. **News is now handled better:** jumps no longer pass for momentum, and the forecast is capped.
    This changes nothing without news and adds up to $249 per session with it. It loses a little
    when the market reprices slowly (see open issues).
@@ -73,7 +75,36 @@ mid moved less than our distance to it), so "adverse" alone scored **more** than
 $5,600). Now the fill counts only if the mid 120 batches later is *past our price*: a real
 pick-off, always a losing fill.
 
-STRESS_TABLE
+alpha.py (identical to v2 without news), 24 out-of-sample sessions, `research/chart_data.py`:
+
+| scenario | $/session | worst session | shares/session | maker ¢/share |
+|---|---|---|---|---|
+| base (backtest rule) | $5,600 | $3,382 | 287k | 1.93 |
+| trade must print 2 ticks through | $2,871 | $1,442 | 142k | 1.96 |
+| we get 30% of each trade's size | $2,865 | $1,640 | 136k | 2.02 |
+| we get 10% | $1,364 | $533 | 56k | 2.11 |
+| 30% + 2 ticks through | $1,710 | $665 | 74k | 2.13 |
+| adverse at-price fills only | $6,049 | $3,498 | 352k | 1.69 |
+| **realistic: 30% + 2 ticks + adverse** | **$1,540** | **$473** | 104k | 1.30 |
+| harshest: 10% + 2 ticks + adverse | $788 | **−$4** | 44k | 1.25 |
+
+(Before the fix, realistic was $1,755 and adverse alone $6,752.)
+
+**Even fixed, "adverse" flatters the strategy, because it leaks the future.** The rule decides a
+pick-off by looking at the mid 120 batches ahead. Every forced fill therefore tells the strategy
+where the price is going, and the inventory skew then moves its quotes the right way. The fills
+split as follows (`at price` = filled on a print exactly at our price):
+
+| realistic scenario, per session | at-price fills | all other fills | total |
+|---|---|---|---|
+| without adverse (30% + 2 ticks) | $67 (1.50¢/sh) | $1,452 (2.17¢/sh) | $1,710 |
+| with adverse | **−$693** (−2.49¢/sh, 28k sh) | $2,000 (2.74¢/sh) | $1,540 |
+
+The pick-offs cost what they should, but the other fills gain $548 per session from information
+no real market would give. **A conservative realistic estimate is about $1,000 per session**
+($1,540 − $548). It is still positive, but the worst sessions would be near zero. Being picked off
+does carry information in a real market too, so the truth lies between the two figures. The rule
+cannot be made leak-free without making it not adverse; read "adverse" results as optimistic.
 
 ## 3. Strategy knobs: nested CV
 
@@ -178,9 +209,10 @@ Reproduce (from `research/`, with `../.venv/bin/python`): `overfit.py`, `iterate
 
 ## 7. Open issues, in priority order
 
-1. **Volume share.** Stress scenarios keep 25–35% of the base dollars, and per-share edge holds
-   better than volume. Live fill share is the biggest unknown. Check maker ¢/share in R1's report
-   first, before anything else.
+1. **Volume share and adverse selection.** Realistic stress keeps about 18–28% of the base
+   dollars ($1,000–$1,540 of $5,600). Pick-offs cost about 2.5¢ per share, more than the whole
+   maker edge. Live fill share and pick-off rate are the biggest unknowns. Check maker ¢/share in
+   R1's report first, before anything else. If it is below about 1¢, widen `make_edge`.
 2. **Rebase timing vs repricing speed.** The rebase loses a little when the market takes about 30 s
    to reprice. Once real news is seen on the sandbox, measure how long repricing takes and set
    `news_pause` to cover it.
