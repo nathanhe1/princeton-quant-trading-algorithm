@@ -1,0 +1,16 @@
+graph TD
+  A["Every batch (500 ms): read book + trades, remove our own orders"] --> B["Update features: price moves, trade flow, ETF gap"]
+  B --> C["Fair value = microprice + model forecast (capped)"]
+  C --> D{"Symbol halted, one-sided, or cooling down?"}
+  D -- yes --> X["Cancel quotes, skip this symbol"]
+  D -- no --> E{"Is fair far beyond the touch?"}
+  E -- "fair - ask > fee + take_edge" --> F["TAKE: buy IOC at the ask"]
+  E -- "bid - fair > fee + take_edge" --> G["TAKE: sell IOC at the bid"]
+  E -- no --> H{"News pause on?"}
+  F --> H
+  G --> H
+  H -- "yes (10 batches after news)" --> Y["Cancel quotes"]
+  H -- no --> I["Centre = fair - skew x position / cap"]
+  I --> J["MAKE: bid = centre - make_edge, ask = centre + make_edge, never crossing the book"]
+  J --> K["Size each quote to fit position cap and net exposure under 580"]
+  K --> L["Place, move or cancel our resting bid and ask"]
