@@ -62,8 +62,8 @@ chosen: 0.3 (HPPO, BNKY), 0.1–0.3 (CRRT, BRRY). Out-of-sample R² rose by 0.00
 markout by $83 per session. Under realistic stress it **lost $56–58 per session in all three
 seeds tried** (paired standard error about $30); it was better in only 8–10 of 24 sessions, and
 the worst session fell from $473 to $258. Prompt 2's rule is to keep only what improves both, so
-it was dropped. Higher R² does not guarantee better fills. `research/fit.py` keeps the option
-(the default is scaled; `--raw` reproduces the baked fit exactly).
+it was dropped. Higher R² does not guarantee better fills. `research/fit.py` keeps it behind
+`--scaled`; the default is still the baked fit.
 
 ## 2. Stress test fix
 
@@ -164,7 +164,7 @@ the final before/after in the summary uses the original coefficients.)
 | `strategies/alpha.py` | + `FAIR_CAP`, `NEWS_REBASE`, `rebase()`; coefficients and defaults as in v2 |
 | `strategies/archive/alpha_v2.py` | the version before this iteration |
 | `research/overfit.py` | in-sample vs out-of-sample R², sign stability, regularised variants |
-| `research/fit.py` | `--raw` (old fit, baked) or scaled ridge with per-symbol penalty; `--lam S=v,...` |
+| `research/fit.py` | default = the baked fit; `--scaled [--lam S=v,...]` = the rejected scaled ridge |
 | `research/stress.py` | adverse fills fixed to real pick-offs |
 | `research/evalx.py` | parallel 3-fold evaluation: any strategy, raw/scaled coefficients, any stress scenario, synthetic news; `STRESS_SEED` env var |
 | `research/iterate.py` | ablations (coefficients, cap, rebase, pause) without and with news |

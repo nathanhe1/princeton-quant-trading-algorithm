@@ -1,9 +1,10 @@
 """Fit the fair-value model and write coefficients as JSON.
-usage: python fit.py OUT.json [H] [first_session last_session | ex first last] [--raw] [--lam S=v,...]
+usage: python fit.py OUT.json [H] [first_session last_session | ex first last] [--scaled [--lam S=v,...]]
 
-Default: ridge on features scaled to unit RMS (no intercept, no centring, as alpha.py has no
-intercept), with a per-symbol penalty chosen by nested CV in overfit.py; coefficients are mapped
-back to raw units. --raw reproduces the old fit (penalty 1e-3 on raw, unscaled features)."""
+Default (baked in alpha.py): ridge with penalty 1e-3 x n on raw, unscaled features.
+--scaled: ridge on features scaled to unit RMS (no intercept, no centring), per-symbol penalty
+chosen by nested CV in overfit.py, mapped back to raw units. Higher OOS R^2 but worse markout
+under realistic stress (research/REPORT.md section 1), so not used. --raw is accepted and ignored."""
 import json, sys, numpy as np, pandas as pd
 from load import *
 LAGS = [10, 30, 60, 120, 240]
@@ -33,7 +34,7 @@ def solve(A, y, lam, raw):
 
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    raw = "--raw" in sys.argv
+    raw = "--scaled" not in sys.argv
     lam = dict(LAM)
     if "--lam" in sys.argv:
         for kv in sys.argv[sys.argv.index("--lam") + 1].split(","):
