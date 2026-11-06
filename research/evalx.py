@@ -20,6 +20,7 @@ import dataclasses
 import json
 import os
 import random
+import time
 from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
@@ -36,6 +37,7 @@ from load import DATA, SYMS
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 H = 120
+WEIGHT = {"HPPO": 1.0, "BNKY": 0.15, "CRRT": -0.29, "BRRY": 0.425}  # exposure weights (guide section 6)
 # typical 60 s mid move (cents, std of mid(t+120) - mid(t) over all sessions); see sigma60()
 SIGMA60 = {"HPPO": 12.6, "BNKY": 4.9, "CRRT": 4.9, "BRRY": 8.2}
 PROPAGATE = {"BNKY": {"BNKY": 1, "HPPO": 1}, "BRRY": {"BRRY": 1, "HPPO": 2}, "CRRT": {"CRRT": 1}}
@@ -118,19 +120,24 @@ def _one(job):
         by_batch.setdefault(e["t"], []).append(wire.NewsItem(e["id"], e["t"], f"synthetic {e['src']}", ""))
 
     original_send = v2bt._Feed.send
+    msgs = []  # client messages (orders, cancels, replaces, conversions) answered to each batch
 
     def send(self, message):
         if by_batch and isinstance(message, wire.Batch) and message.batch in by_batch:
             message = dataclasses.replace(message, news=by_batch[message.batch])
-        return original_send(self, message)
+        out = original_send(self, message)
+        if isinstance(message, wire.Batch):
+            msgs.append(len(out))
+        return out
 
     scenario = next(s for s in stress.SCENARIOS if s.name == scenario_name)
     original_fills = stress._install(scenario, int(os.environ.get("STRESS_SEED", 2026))) if scenario_name != "base" else None
     v2bt._Feed.send = send
     try:
         strat = load_cls(path)()
-        with open(os.path.join(HERE, coef_file)) as f:
-            strat.model = json.load(f)
+        if coef_file:  # None = use the strategy's own built-in model (may be in-sample!)
+            with open(os.path.join(HERE, coef_file)) as f:
+                strat.model = json.load(f)
         if over:
             strat.params_override = over
         for k, v in (attrs or {}).items():
@@ -144,17 +151,33 @@ def _one(job):
             orig(f)
 
         strat.on_fill = rec
+        times = []
+        orig_batch = strat.on_batch
+
+        def timed(state, orig_batch=orig_batch):
+            t0 = time.perf_counter()
+            orig_batch(state)
+            times.append(time.perf_counter() - t0)
+
+        strat.on_batch = timed
         import logging
 
         logging.disable(logging.INFO)
-        backtest_strategy(session, strat)
+        result = backtest_strategy(session, strat)
     finally:
         v2bt._Feed.send = original_send
         if original_fills is not None:
             stress._Replay.rest_fills = original_fills
 
     df = pd.DataFrame(fills, columns=["batch", "sym", "q", "px", "fee", "liq", "pen"])
-    summary = dict(sess=name, fills=len(df), shares=0, mk120=0.0, news_fills_mk=0.0)
+    rej = getattr(result, "rejects", None)
+    summary = dict(sess=name, fills=len(df), shares=0, mk120=0.0, mk240=0.0, news_fills_mk=0.0,
+                   msgs_mean=float(np.mean(msgs)) if msgs else 0.0, msgs_max=max(msgs) if msgs else 0,
+                   msgs_p99=float(np.percentile(msgs, 99)) if msgs else 0.0,
+                   ms_mean=1000 * float(np.mean(times)) if times else 0.0,
+                   ms_max=1000 * max(times) if times else 0.0,
+                   rejects=json.dumps({str(k): v for k, v in rej.items()}) if isinstance(rej, dict) else str(rej),
+                   max_abs_exposure=0.0, **{f"maxpos_{s}": 0 for s in SYMS})
     if len(df):
         mids = _mids(session)
         last = session.n_batches - 1
@@ -168,9 +191,23 @@ def _one(job):
                 dn[after] += j
                 near |= m & (df.batch.to_numpy() >= e["t"]) & (df.batch.to_numpy() < e["t"] + 240)
         df["mk120"] = df.q * (ref - dn - df.px) - df.fee - df.pen
+        ref240 = np.array([mids[s][min(b + 240, last)] for b, s in zip(df.batch, df.sym)])
+        dn240 = np.zeros(len(df))
+        for e in events:
+            for s, j in e["jumps"].items():
+                m = (df.sym == s).to_numpy()
+                dn240[m & (df.batch.to_numpy() < e["t"]) & (e["t"] <= df.batch.to_numpy() + 240)] += j
+        df["mk240"] = df.q * (ref240 - dn240 - df.px) - df.fee - df.pen
+        pos = {s: 0 for s in SYMS}
+        expo = 0.0
+        for sym, q in zip(df.sym, df.q):
+            pos[sym] += q
+            summary[f"maxpos_{sym}"] = max(summary[f"maxpos_{sym}"], abs(pos[sym]))
+            expo = max(expo, abs(sum(WEIGHT[s] * pos[s] for s in SYMS)))
+        summary["max_abs_exposure"] = expo
         df["near_news"] = near
         df["sess"] = name
-        summary.update(shares=int(df.q.abs().sum()), mk120=df.mk120.sum() / 100,
+        summary.update(shares=int(df.q.abs().sum()), mk120=df.mk120.sum() / 100, mk240=df.mk240.sum() / 100,
                        news_fills_mk=df.loc[df.near_news, "mk120"].sum() / 100)
     return summary, df
 
@@ -182,7 +219,8 @@ def evaluate(path, coefs="std", scenario="base", news=None, over=None, attrs=Non
         for name in pick(span):
             if sessions_spec and name not in pick(sessions_spec):
                 continue
-            jobs.append((os.path.abspath(path), f"fold{k}{suffix}.json", name, scenario, over, attrs, news))
+            cf = None if coefs == "none" else f"fold{k}{suffix}.json"
+            jobs.append((os.path.abspath(path), cf, name, scenario, over, attrs, news))
     with ProcessPoolExecutor(os.cpu_count()) as pool:
         out = list(pool.map(_one, jobs))
     summ = pd.DataFrame([o[0] for o in out])
