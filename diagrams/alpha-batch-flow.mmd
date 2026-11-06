@@ -4,8 +4,8 @@ graph TD
   C --> D{"Symbol halted, one-sided, or cooling down?"}
   D -- yes --> X["Cancel quotes, skip this symbol"]
   D -- no --> E{"Is fair far beyond the touch?"}
-  E -- "fair - ask > fee + take_edge" --> F["TAKE: buy IOC at the ask"]
-  E -- "bid - fair > fee + take_edge" --> G["TAKE: sell IOC at the bid"]
+  E -- "fair - ask is more than fee + take_edge" --> F["TAKE: buy IOC at the ask"]
+  E -- "bid - fair is more than fee + take_edge" --> G["TAKE: sell IOC at the bid"]
   E -- no --> H{"News pause on?"}
   F --> H
   G --> H
