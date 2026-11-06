@@ -117,13 +117,14 @@ def stressed_rest_fills(self, trades, *, scenario, seed):
                 adverse_at_price = False
                 if scenario.adverse and trade.price == order.price:
                     mids = _stress_mids(self, trade.batch, trade.symbol)
-                    adverse_at_price = mids is not None and mids[1] < mids[0]
+                    # pick-off: filled only if the mid 120 batches later is below our bid (a losing fill)
+                    adverse_at_price = mids is not None and mids[1] < order.price
             else:
                 through = trade.price >= order.price + scenario.through
                 adverse_at_price = False
                 if scenario.adverse and trade.price == order.price:
                     mids = _stress_mids(self, trade.batch, trade.symbol)
-                    adverse_at_price = mids is not None and mids[1] > mids[0]
+                    adverse_at_price = mids is not None and mids[1] > order.price
             if not (through or adverse_at_price):
                 continue
             quantity = min(left, order.remaining)

@@ -102,7 +102,7 @@ def evaluate(spec, data, names):
 
 
 def specs():
-    grid = [1e-4, 1e-3, 1e-2, 3e-2, 1e-1, 3e-1]
+    grid = [1e-2, 3e-2, 1e-1, 3e-1, 1.0, 3.0, 10.0]
     return {
         "current: 33 feats, raw ridge 1e-3": dict(cols=lambda s: ALL, lam=1e-3, std=False),
         "33 feats, std ridge (inner CV)": dict(cols=lambda s: ALL, lam="inner", std=True, grid=grid),
