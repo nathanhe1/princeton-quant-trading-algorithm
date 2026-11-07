@@ -178,6 +178,13 @@ class Alpha(Strategy):
     # symbol's quoting edge, the side the forecast says will be picked off is widened to
     # ONE_SIDE_WIDEN times the edge, or pulled when ONE_SIDE_WIDEN is 0.
     ONE_SIDE_K = 0.0  # 0 = off
+    # ETF-consistent fair values (research, 0 = off): HPPO's true value is exactly BNKY + 2 BRRY, so
+    # the three fairs are projected toward agreeing, each moving in proportion to its variance.
+    ETF_PROJECT = 0.0
+    # Volatility-scaled quoting edge (research, 0 = off): edge x (live 5 s move sd / historical)^gamma.
+    VOL_GAMMA = 0.0
+    VOL_REF = {"HPPO": 2.157, "BNKY": 0.968, "CRRT": 1.068, "BRRY": 2.317}  # median sd of 10-batch mid moves
+    VOL_HALFLIFE = 1200
     ONE_SIDE_WIDEN = 0.0
     model = MODEL
     params_override: dict | None = None  # for research sweeps
@@ -201,6 +208,8 @@ class Alpha(Strategy):
         self.news_ref: dict[str, float] = {}  # micro just before that news
         self.rebase_at = None
         self.news_target = {}  # symbol -> (target price, direction, last batch) from a news read
+        self.mid10 = {s: deque(maxlen=11) for s in SYMS}
+        self.var10 = {s: None for s in SYMS}
         self.seen = 0  # batches seen by this program (a late start has no history yet)
         self.horizon = int(m.get("H", 120))
         self.adj_hist = {s: deque(maxlen=self.horizon + 1) for s in SYMS}  # (adj, micro) per batch
@@ -302,6 +311,13 @@ class Alpha(Strategy):
                     self.ext[s] = e
             if s in self.ext:
                 self.u_hist[s].append(self.ext[s].micro)
+                h10 = self.mid10[s]
+                h10.append(self.ext[s].mid)
+                if len(h10) == 11:
+                    d2 = (h10[-1] - h10[0]) ** 2
+                    a = 1 - 0.5 ** (1 / self.VOL_HALFLIFE)
+                    v = self.var10[s]
+                    self.var10[s] = d2 if v is None else v + a * (d2 - v)
             self.f_hist[s].append(flow[s])
         if self.rebase_at is not None and state.batch >= self.rebase_at:
             self.rebase(state.batch)
@@ -378,6 +394,22 @@ class Alpha(Strategy):
                     self.fair[s] = max(self.fair[s], target)
                 else:
                     self.fair[s] = min(self.fair[s], target)
+
+    def project_etf(self) -> None:
+        """Move HPPO, BNKY and BRRY fairs toward HPPO = BNKY + 2 BRRY (weighted least squares)."""
+        f = self.fair
+        r = f["HPPO"] - f["BNKY"] - 2 * f["BRRY"]
+        v = {s: SIGMA60[s] ** 2 for s in ("HPPO", "BNKY", "BRRY")}
+        lam = self.ETF_PROJECT * r / (v["HPPO"] + v["BNKY"] + 4 * v["BRRY"])
+        f["HPPO"] -= v["HPPO"] * lam
+        f["BNKY"] += v["BNKY"] * lam
+        f["BRRY"] += 2 * v["BRRY"] * lam
+
+    def vol_factor(self, s) -> float:
+        if not self.VOL_GAMMA or self.var10[s] is None:
+            return 1.0
+        z = math.sqrt(self.var10[s]) / self.VOL_REF[s]
+        return max(0.5, min(3.0, z)) ** self.VOL_GAMMA
 
     # ------------------------------------------------------------------ risk
     def worst_case(self):
@@ -495,6 +527,8 @@ class Alpha(Strategy):
         if not ready or self.seen <= WARMUP or state.final or state.blocked:
             return
         self.compute_fair(state.batch)
+        if self.ETF_PROJECT:
+            self.project_etf()
         quoting = bool(self.param("make_on")) and state.batch >= self.pause_until
         take_on = bool(self.param("take_on"))
         scale = float(self.param("size_scale"))
@@ -545,7 +579,7 @@ class Alpha(Strategy):
             # lean against net exposure too (from PQT): the strategy is exposure-capped, so steering
             # E back toward 0 frees capacity on both sides
             centre -= lean * E / EXPOSURE_CAP * (1 if WEIGHT[s] > 0 else -1) * min(1.0, abs(WEIGHT[s]) * 2)
-            e = float(self.param("make_edge")) * mult
+            e = float(self.param("make_edge")) * mult * self.vol_factor(s)
             bid = min(math.floor(centre - e), x.ask - 1)  # never cross the (external) book
             ask = max(math.ceil(centre + e), x.bid + 1)
             if bid >= ask:
