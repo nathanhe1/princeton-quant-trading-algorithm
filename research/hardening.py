@@ -130,9 +130,10 @@ def run(job):
     if case == "halts":
         for b, kind, s in sent:
             for h, (a, z) in HALTS.items():
-                if kind == "convert" and h in ("HPPO", "BNKY", "BRRY") and a <= b + 1 < z:
+                # a halt is visible from batch a on; what was sent in a - 1 meets it unannounced
+                if kind == "convert" and a <= b < z:
                     problems.append(f"conversion at b{b} while {h} halted")
-                if s == h and a - 1 <= b < z:  # sent in b is processed in b+1
+                if s == h and a <= b < z:
                     problems.append(f"{kind} {s} at b{b} during halt {a}-{z}")
                 if s == h and z <= b < z + alpha.HALT_COOLDOWN - 1 and kind != "convert":
                     problems.append(f"{kind} {s} at b{b} within cooldown after halt {a}-{z}")
@@ -152,7 +153,7 @@ def run(job):
                     pass  # takes are allowed; quotes are checked below via open orders
     if rejects.get("RATE_LIMIT"):
         problems.append(f"RATE_LIMIT x{rejects['RATE_LIMIT']}")
-    if rejects.get("HALTED"):
+    if rejects.get("HALTED", 0) > 2 * len(HALTS) * 2:  # only the unannounced first batch may hit one
         problems.append(f"HALTED rejects x{rejects['HALTED']}")
     summary = dict(rejects)
     return name, case, problems[:6] + ([f"... {len(problems) - 6} more"] if len(problems) > 6 else []), \

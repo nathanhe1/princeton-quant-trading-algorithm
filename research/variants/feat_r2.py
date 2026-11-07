@@ -164,6 +164,15 @@ CANDIDATES = {"baseline": base, "flow_size": c_flow_size, "flow_ewma": c_flow_ew
               "volnorm": c_volnorm, "volnorm_add": c_volnorm_add, "sqrt": c_sqrt,
               "clip4": base, "clip3": base}  # clips are applied in cv() with training-set levels
 CLIP = {"clip4": 4.0, "clip3": 3.0}
+FAIR_CAP = {"HPPO": 20.0, "BNKY": 6.5, "CRRT": 8.5, "BRRY": 20.0}  # alpha.py's output cap
+
+
+def builder(name):
+    """'imb+clip3' = the imb frame, clipped at 3 x training RMS."""
+    base_name, _, clip = name.partition("+")
+    if base_name.startswith("clip"):
+        base_name, clip = "baseline", base_name
+    return CANDIDATES[base_name], (float(clip[4:]) if clip else None)
 
 
 def load_all():
@@ -187,7 +196,8 @@ def ridge(X, y):
 
 def cv(name, Rall, return_coefs=False):
     names = sessions()
-    frames = {n: CANDIDATES[name](Rall[n]) for n in names}
+    build, clipk = builder(name)
+    frames = {n: build(Rall[n]) for n in names}
     cols = list(frames[names[0]].columns)
     res, fold_r2, coefs = {}, {}, {}
     for s in SYMS:
@@ -201,11 +211,14 @@ def cv(name, Rall, return_coefs=False):
             Xt, yt = stack(frames, ys, train, cols)
             Xe, ye = stack(frames, ys, test, cols)
             clip = None
-            if name in CLIP:
-                clip = CLIP[name] * np.sqrt((Xt ** 2).mean(0))
+            if clipk:
+                clip = clipk * np.sqrt((Xt ** 2).mean(0))
                 Xt, Xe = np.clip(Xt, -clip, clip), np.clip(Xe, -clip, clip)
             b = ridge(Xt, yt)
-            e = np.sum((ye - Xe @ b) ** 2)
+            p = Xe @ b
+            if os.environ.get("CAP"):
+                p = np.clip(p, -FAIR_CAP[s], FAIR_CAP[s])
+            e = np.sum((ye - p) ** 2)
             num += e
             den += np.sum(ye ** 2)
             per.append(1 - e / np.sum(ye ** 2))
@@ -218,6 +231,8 @@ def cv(name, Rall, return_coefs=False):
 if __name__ == "__main__":
     Rall = load_all()
     which = sys.argv[1:] or list(CANDIDATES)
+    if "baseline" not in which:
+        which = ["baseline"] + which
     rows, folds = {}, {}
     for c in which:
         r, f = cv(c, Rall)
