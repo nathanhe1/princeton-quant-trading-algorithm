@@ -395,6 +395,13 @@ class Alpha(Strategy):
         self.own_taker = {s: 0 for s in SYMS}
         for s in SYMS:
             top = state.top[s]
+            if s == "HPPO" and "HPPO" not in self.ext and (top.halted or not top.two_sided):
+                # R2: HPPO halted while a fresh process had no HPPO price yet, and with one symbol
+                # missing nothing traded. Its true value is exactly BNKY + 2 BRRY: stand in with that.
+                b = self.external("BNKY", state.top["BNKY"])
+                r = self.external("BRRY", state.top["BRRY"])
+                if b is not None and r is not None:
+                    self.ext["HPPO"] = Ext(b.bid + 2 * r.bid, 100, b.ask + 2 * r.ask, 100)
             if top.halted:
                 self.was_halted[s] = True
             else:
