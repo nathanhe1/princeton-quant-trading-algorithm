@@ -7,3 +7,5 @@ pqt-runs/
 *.log
 .env
 research/sandbox_runs/
+research/variants/raw_cache.pkl
+*.pkl

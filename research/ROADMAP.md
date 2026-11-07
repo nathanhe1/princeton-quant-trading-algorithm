@@ -93,6 +93,28 @@ and 7 EXPOSURE_LIMIT. No halts happened, so halt handling is still untested live
     real news format is unknown (the sandbox shows only "routine notice"). Turn it on for R2 only if
     R1's news reads correctly and repricing takes ≥ 10 s. Paste R1's real items into a test.
 
+- **2026-11-06, v7 = v6 + book imbalance + feature clipping (prompt 2).**
+  - **Research:** `research/variants/` (agent; `feat_r2.py` R² harness, `parity.py` live/research
+    feature parity). Candidates were EWMA flow, flow by trade size, imbalance (± spread), ETF basis
+    (already in the model via gapB), vol-normalised returns, sign·√, clipping.
+  - **Choice:** imbalance + clip at 3× training RMS had the best stress result.
+  - **Live fit:** `research/fit_imb_clip3.py` (24 sessions), baked into `alpha.py`.
+    `fold{1,2,3}.json` are now this model's out-of-sample fits; the old ones are
+    `fold{k}_base33.json`.
+  - **Results, vs v6, $/session (worst):**
+
+    | case | v6 | v7 |
+    |---|---|---|
+    | base | 6,232 (4,006) | 6,154 (3,747) |
+    | realistic stress | 1,451 (366) | **1,549** (320) |
+    | stress without adverse | 1,586 (453) | **1,641 (585)** |
+    | stress, model ×2 | 1,217 (184) | **1,262 (316)** |
+    | stress, model ×−1 | −72 (−498) | −97 (−591) |
+
+    The agent's 3-seed paired figures: stress +$88 ± 29, base −$78 ± 40.
+  - **Checks:** hardening replays and unit tests pass.
+  - **Live caveat:** when we are alone at the touch, imbalance uses `external()`'s guessed level.
+
 ## P0: robustness, before R1 (independent of the sandbox)
 
 Accept each P0 change under the existing rules: nested CV, stress `share=0.3+through=2+adverse` as

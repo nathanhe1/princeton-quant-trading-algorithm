@@ -38,7 +38,9 @@ python final_compare.py       # before/after table: base, stress, synthetic news
   under about $60/session need paired, per-session comparison over several seeds (set the
   `STRESS_SEED` environment variable).
 - **Before editing `alpha.py`, copy it to `strategies/archive/alpha_vN.py`** (v2 is the latest).
-  Coefficients go in through `fit.py` → `bake.py`; `fit.py`'s default is the live fit.
+  Coefficients go in through a fit script → `bake.py`. Since v7 the live fit is
+  `research/fit_imb_clip3.py` (fit.py's 33-feature model is the older one; its fold files are
+  `fold{k}_base33.json`).
 
 ## Gotchas
 
