@@ -150,7 +150,14 @@ volatility. Today the strategy has no defence in that scenario, and that is the 
 16. **Sandbox mechanics retest** after every change, with `research/sandbox_probe.py` (it runs
     `alpha.py` unchanged and exits cleanly after `PROBE_BATCHES`). Judge only mechanics there: rejects,
     messages, timing, halts. Never judge PnL or markout there.
-17. **Runbook** (prompt 7):
+17. **Runbook** (prompt 7). **The parameter schema is locked per session.** The sandbox rejected
+    v5's schema with `param_schema: the parameters cannot change during a session` (BAD_REQUEST),
+    because a teammate's program had already declared a different one in sandbox-0197.
+    - **Consequence:** the GUI panel cannot reach the parameters a later version adds, and the
+      program runs on its defaults.
+    - **Rule:** freeze `MODEL_PARAMS` before R1; a mid-session hotfix may change code but never
+      parameters.
+    - **Coordination:** decide which teammate's program declares first.
     - **Before:** `pqt check` before each session; one algo key per program (a second copy
       supersedes the first); `--cancel-on-disconnect`.
     - **Kill switch:** the floor is set in `on_start`. Reconsider the floor: $20,000 never fires in
