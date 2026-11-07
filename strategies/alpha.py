@@ -282,8 +282,7 @@ class Alpha(Strategy):
 
     def on_news(self, item) -> None:
         named = set(TICKERS.findall(f"{item.headline} {item.body}"))
-        if named & {"BNKY", "BRRY"}:
-            named.add("HPPO")  # the ETF moves with its legs
+        named.add("HPPO")  # R2 (team call): any news stops HPPO for the pause; it moves with its legs
         for s in named:
             self.news_sym_until[s] = max(self.news_sym_until[s], item.batch + self.NEWS_SYM_PAUSE)
         if named:
@@ -291,6 +290,9 @@ class Alpha(Strategy):
         if self.param("news_trade"):
             read = read_news(item.headline, item.body)
             for s, (d, conf) in read.items():
+                if s == "HPPO":  # R2 (team call): no HPPO news bets; the team trades HPPO by hand
+                    self.news_sym_until[s] = max(self.news_sym_until[s], item.batch + self.NEWS_DIR_PAUSE)
+                    continue
                 self.news_bet[s] = (d, conf, item.batch + self.NEWS_BET_HOLD)
                 self.news_sym_until[s] = max(self.news_sym_until[s], item.batch + self.NEWS_DIR_PAUSE)
             if read:
