@@ -23,7 +23,7 @@ PQT = str(ROOT / ".venv/bin/pqt")
 CAP_OFF = {"_attrs": {"MAX_IMPROVE": None}}
 CAP_ON = {"_attrs": {"MAX_IMPROVE": 2}}
 PLAN = [  # one entry per session: the two arms (frozen v9: make_edge 2.5, cap 2, size 1.5, takes on)
-    ("edge", [{"make_edge": 2.5}, {"make_edge": 1.5}]),
+    ("final", None),  # dress rehearsal: strategies/alpha.py as it is now, on its defaults, R1 command
     ("cap", [CAP_ON, CAP_OFF]),
     ("size", [{"size_scale": 1.5}, {"size_scale": 0.5}]),
     ("edge", [{"make_edge": 1.5}, {"make_edge": 2.5}]),
@@ -57,7 +57,11 @@ def main():
             seen.add(name)
             tag, arms = PLAN[i]
             i += 1
-            env = {**ENV, "PROBE_STRATEGY": str(ROOT / "research/campaign_alpha_v9.py"), "PROBE_BATCHES": "0", "PROBE_ALTERNATE": json.dumps(arms), "PROBE_TAG": f"{tag}:{name}"}
+            if arms is None:  # the current strategy file, no A/B
+                env = {**ENV, "PROBE_BATCHES": "0", "PROBE_TAG": f"{tag}:{name}"}
+            else:
+                env = {**ENV, "PROBE_STRATEGY": str(ROOT / "research/campaign_alpha_v9.py"), "PROBE_BATCHES": "0",
+                       "PROBE_ALTERNATE": json.dumps(arms), "PROBE_TAG": f"{tag}:{name}"}
             log = open(ROOT / f"research/sandbox_runs/campaign_{name}.log", "w")
             proc = subprocess.Popen([PQT, "run", "research/sandbox_probe.py:Probe", "--mode", "test",
                                      "--cancel-on-disconnect", "--server", ENV["PQT_SERVER"], "--key", ENV["PQT_API_KEY"]],

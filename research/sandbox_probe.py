@@ -92,6 +92,7 @@ class Probe(Alpha):
         self.emit("news_pause", pause_until=self.pause_until, rebase_at=self.rebase_at)
 
     def on_model_params(self, changed) -> None:
+        super().on_model_params(changed)  # e.g. a new kill_floor takes effect at once
         self.emit("params", changed=dict(changed), all=dict(self.model_params))
         self.log.info("model params changed: %s", changed)
 

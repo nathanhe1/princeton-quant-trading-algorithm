@@ -243,6 +243,8 @@ class Alpha(Strategy):
         self.own_marked = deque()  # (fill batch, symbol, markout cents x shares, shares)
         self.size_k = {s: self.SIZE_START for s in SYMS}
         self.thr_level, self.thr_neg, self.thr_pos = 0, 0, 0
+        self.last_qty = {}  # (symbol, side) -> last real external size at the touch
+        self.gap_rebase = set()  # symbols whose next price is across a gap (halt end, reconnect)
         self.seen = 0  # batches seen by this program (a late start has no history yet)
         self.horizon = int(m.get("H", 120))
         self.adj_hist = {s: deque(maxlen=self.horizon + 1) for s in SYMS}  # (adj, micro) per batch
@@ -301,7 +303,12 @@ class Alpha(Strategy):
             self.arm_kill_switch(self.state)  # a new floor from the GUI takes effect at once
 
     def on_reconnect(self) -> None:
-        pass  # resting orders are still there and a news pause stays in force: carry on
+        # resting orders are still there and a news pause stays in force. Batches (and possibly news
+        # or a halt) were missed: rebase the price history across the gap and cool down every symbol.
+        self.gap_rebase.update(SYMS)
+        b = self.state.batch if self.state is not None else 0
+        for s in SYMS:
+            self.cool_until[s] = max(self.cool_until[s], b + HALT_COOLDOWN)
 
     def param(self, name):
         if self.params_override and name in self.params_override:
@@ -326,7 +333,7 @@ class Alpha(Strategy):
                 elif prev is not None and prev.bid < bid:
                     bid, bq, gb = prev.bid, prev.bq, True
                 else:
-                    bid, bq, gb = bid - 1, 100, True
+                    bid, bq, gb = bid - 1, self.last_qty.get((s, "bid"), 100), True
             ma = sum(o.remaining for o in self.open_orders(s) if o.side == "SELL" and o.price == ask)
             if ma:
                 if aq > ma:
@@ -334,9 +341,13 @@ class Alpha(Strategy):
                 elif prev is not None and prev.ask > ask:
                     ask, aq, ga = prev.ask, prev.aq, True
                 else:
-                    ask, aq, ga = ask + 1, 100, True
+                    ask, aq, ga = ask + 1, self.last_qty.get((s, "ask"), 100), True
             if bid >= ask:
                 return prev
+            if not gb:
+                self.last_qty[(s, "bid")] = bq
+            if not ga:
+                self.last_qty[(s, "ask")] = aq
         return Ext(bid, bq, ask, aq, gb, ga)
 
     def update_features(self, state: BatchState) -> bool:
@@ -356,11 +367,19 @@ class Alpha(Strategy):
                 if self.was_halted[s]:
                     self.was_halted[s] = False
                     self.cool_until[s] = state.batch + HALT_COOLDOWN
+                    self.gap_rebase.add(s)
                 e = self.external(s, top)
                 if e is not None:
                     self.ext[s] = e
             if s in self.ext:
                 self.u_hist[s].append(self.ext[s].micro)
+                if s in self.gap_rebase and top.two_sided and not top.halted:
+                    self.gap_rebase.discard(s)
+                    h = self.u_hist[s]
+                    if len(h) >= 2:  # shift the history before the gap so the jump reads as no move
+                        jump = h[-1] - h[-2]
+                        self.u_hist[s] = deque([u + jump for u in list(h)[:-1]] + [h[-1]], maxlen=h.maxlen)
+                    self.adj_hist[s].clear()  # calibration samples across the gap are not the model's error
                 h10 = self.mid10[s]
                 h10.append(self.ext[s].mid)
                 if len(h10) == 11:

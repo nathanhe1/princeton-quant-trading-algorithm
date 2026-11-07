@@ -30,6 +30,9 @@ fills. Estimated PnL in the GUI is **not** the score: don't react to it alone.
   well. The strategy arms the floor in its first batch, and skips it (with a warning) if realized
   PnL is already below it after a restart. Changing `kill_floor` in the panel applies at once.
   Only `strategies/alpha.py` runs in R1/R2: archive copies declare a different parameter list.
+- [ ] **No manual resting orders while the strategy runs.** It sees the whole team's open orders
+  and will move or cancel a resting GUI limit order as if it were its own (also with `enabled` 0,
+  `pause_SYM` and after news). Manual trades must be IOC or market orders.
 - [ ] Laptop: wired network, plugged in, and `caffeinate -i` in a spare terminal (macOS).
 
 ## Start of each session (R1, then R2)
@@ -73,7 +76,7 @@ The log prints one line a minute:
 |---|---|
 | from minute 12, the markout line is negative overall two minutes running | `size_scale` 1.5 → 0.75 (sandbox: full size + takes lost, small size didn't) |
 | taker (T) markout negative on the markout line | `take_on` 0 |
-| still negative 5 minutes after cutting size | `make_edge` 2.5 → 4 |
+| still negative 5 minutes after cutting size | `make_edge` 1.5 → 2.5, then → 4 |
 | model weights near 0 on most symbols | nothing by itself: calibration already shrank the model; watch the markout line |
 | one symbol misbehaving (halts, wild prints) | `pause_SYM` 1 |
 | strong human view after news, e.g. obvious good news on BNKY | `bias_BNKY` (cents) for a minute, **then back to 0** |

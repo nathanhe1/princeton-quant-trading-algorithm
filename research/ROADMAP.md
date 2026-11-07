@@ -161,6 +161,40 @@ and 7 EXPOSURE_LIMIT. No halts happened, so halt handling is still untested live
   - **Guards built, kept off:** `VOL_GUARD` (no cost in-distribution) and `THROTTLE_FROM` (hurts a
     wrong model: reacts too late). `research/recorder.py` records a clean live session as backtest data.
 
+- **2026-11-07 night, v10 (current `strategies/alpha.py`).**
+  - **Defaults:** make_edge 2.5 → 1.5, kill_floor $20,000 → $2,000.
+  - **Nested CV on make_edge:** picked 0.5, the bottom of the grid. 1.5 was chosen as the risk
+    trade-off, because narrow edges lost more on the clean sandbox recording.
+  - **Held out, v9 → v10, $/session (worst):**
+
+    | case | v9 | v10 |
+    |---|---|---|
+    | base | 8,335 (4,732) | 9,315 (6,017) |
+    | stress | 2,707 (933) | 3,202 (1,342) |
+    | without adverse | 2,678 (1,083) | 3,182 (1,423) |
+    | 10% share | 1,928 (899) | 2,070 (1,106) |
+    | model ×−1 | 1,208 (254) | 1,798 (634) |
+
+  - **Rejected tonight** (HANDOFF.md): per-symbol caps, narrower per-symbol multipliers, larger
+    quotes, inventory cap, skew, volatility guard, size learner, throttle, flow-by-trade-size
+    features, calibration re-tune.
+  - **Fixes from two code reviews** (tests added to `tests/test_alpha_live.py` and
+    `research/hardening.py`, 7 + 28 checks pass):
+    - the kill switch is armed in the first batch, and only if realized PnL is above the floor;
+      `kill_floor` changes from the GUI apply at once, including through the logger (it called no
+      `super()`);
+    - halt reopenings and reconnects no longer read the price gap as momentum (a realistic 30¢ halt
+      gap caused 3–11 mistaken HPPO takes before the fix, ≤2 after);
+    - a reconnect cools all symbols down;
+    - the guessed level behind a lone quote uses the last real size, not 100;
+    - research replays run with the kill switch off.
+  - **Kill switch evidence** (`research/killswitch_study.py`): the deepest intra-session realized
+    PnL is −$411 historical (all scenarios) and −$420 on the sandbox recording; the v8 live disaster
+    reached −$1,954 by minute 12.
+  - **Live sandbox campaign** (`research/campaign.py`, report `research/ab_report.py`): interleaved
+    5-minute A/B arms on a frozen v9 copy (cap, size, takes, edge), plus a dress rehearsal of the
+    final code.
+
 ## P0: robustness, before R1 (independent of the sandbox)
 
 Accept each P0 change under the existing rules: nested CV, stress `share=0.3+through=2+adverse` as

@@ -21,6 +21,7 @@ class Fake(Alpha):
         self._left = msgs_left
         self.mode = "test"
         self.ext = {}
+        self.last_qty = {}
         self.symbol_info = {s: NS(max_order_qty=q, position_limit=1000) for s, q in
                             {"HPPO": 200, "BNKY": 500, "CRRT": 500, "BRRY": 120}.items()}
         self.params_override = {p.name: p.default for p in self.MODEL_PARAMS}
@@ -129,6 +130,16 @@ def test_kill_switch_arms_only_above_floor():
     assert run(-1_500_000) == [-2_000_000]
     assert run(-2_100_000) == ["warned"]  # a restart after a big loss must not block the team at once
     assert run(-5_000_000, floor=0) == [None]  # 0 = off
+
+
+def test_external_guess_uses_last_real_size():
+    a = Fake([order("SELL", 101, 50)])
+    a.last_qty[("X", "ask")] = 28  # last real size seen at the ask (BRRY-like)
+    e = a.external("X", top(99, 80, 101, 50))  # alone on the ask
+    assert (e.ask, e.aq, e.guessed_ask) == (102, 28, True)
+    b = Fake()
+    b.external("X", top(99, 80, 101, 37))  # nothing of ours: real sizes are remembered
+    assert b.last_qty == {("X", "bid"): 80, ("X", "ask"): 37}
 
 if __name__ == "__main__":
     for name, fn in list(globals().items()):

@@ -38,6 +38,28 @@ SESSIONS = ("s03", "s10", "s17", "s22")
 
 
 def inject(session, case):
+    if case == "halt-jump":  # HPPO halted 1500-1700; BNKY and BRRY drift +10c each meanwhile, so
+        # HPPO reopens 30c higher, consistent with HPPO = BNKY + 2 BRRY (a real gap, not a mispricing)
+        def shift(sym, b):
+            if sym == "HPPO":
+                return 30 if b >= 1700 else 0
+            if sym in ("BNKY", "BRRY"):
+                return round(10 * min(1.0, max(0.0, (b - 1500) / 200)))
+            return 0
+        tops, trades = [], []
+        for b, top in enumerate(session.tops):
+            new = {}
+            for sym, t in top.items():
+                d = shift(sym, b)
+                t2 = dataclasses.replace(t, bid_px=t.bid_px and t.bid_px + d, ask_px=t.ask_px and t.ask_px + d)
+                if sym == "HPPO" and 1500 <= b < 1700:
+                    t2 = dataclasses.replace(t, status="HALTED")
+                new[sym] = t2
+            tops.append(new)
+        for batch in session.trades:
+            trades.append(tuple(dataclasses.replace(tr, price=tr.price + shift(tr.symbol, tr.batch)) for tr in batch
+                                if not (tr.symbol == "HPPO" and 1500 <= tr.batch < 1700)))
+        return dataclasses.replace(session, tops=tuple(tops), trades=tuple(trades))
     if case not in ("halts", "one-sided"):
         return session
     tops = []
@@ -73,11 +95,11 @@ def run(job):
             sent.append((self.state.batch if self.state else -1, kind, s))
 
         def buy(self, s, *a, **k):
-            self._note("order", s)
+            self._note("take" if k.get("ioc") else "order", s)
             return super().buy(s, *a, **k)
 
         def sell(self, s, *a, **k):
-            self._note("order", s)
+            self._note("take" if k.get("ioc") else "order", s)
             return super().sell(s, *a, **k)
 
         def replace(self, *, order_id=None, client_id=None, price=0, qty=0):
@@ -142,6 +164,10 @@ def run(job):
             for (sym, side), (a, z) in ONE_SIDED.items():
                 if s == sym and a <= b < z and kind == "order":
                     problems.append(f"order {s} at b{b} while its {side} side was empty")
+    if case == "halt-jump":
+        takes = [x for x in sent if x[2] == "HPPO" and x[1] == "take" and 1700 + alpha.HALT_COOLDOWN <= x[0] < 1940]
+        if len(takes) > 2:
+            problems.append(f"{len(takes)} HPPO takes in the 2 min after a 30c halt gap (momentum misread)")
     if case == "late":
         early = [x for x in sent if x[0] < LATE + alpha.WARMUP]
         if early:
@@ -161,7 +187,7 @@ def run(job):
 
 
 if __name__ == "__main__":
-    jobs = [(n, c) for c in ("none", "halts", "one-sided", "dropout", "late", "news") for n in SESSIONS]
+    jobs = [(n, c) for c in ("none", "halts", "halt-jump", "one-sided", "dropout", "late", "news") for n in SESSIONS]
     with ProcessPoolExecutor() as ex:
         out = list(ex.map(run, jobs))
     bad = 0
