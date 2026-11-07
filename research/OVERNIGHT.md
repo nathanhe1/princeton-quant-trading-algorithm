@@ -105,6 +105,32 @@ markout per share vs the mid 60 s later; one sandbox session per question so far
   RUNBOOK now says to start a fresh process for R2; the campaign driver stops each logger when its
   session ends.
 
+## Is the 37-feature model overfit? (`research/overfit37.py`, `overfit37_trade.py`)
+
+Every model below is fit on 16 sessions and scored on the other 8, in all three rotations. Trading is
+$/session, paired per session against the live model (± standard error).
+
+| model | R² out-of-sample (HPPO/BNKY/CRRT/BRRY, ×100) | base | realistic stress | harshest |
+|---|---|---|---|---|
+| live, 37 features | 12.7 / 8.2 / 16.6 / 28.8 | 9,315 | 3,202 | 1,413 |
+| best 20 (picked on training data) | 13.1 / 8.2 / 16.7 / 28.9 | +59 ± 26 | +4 ± 15 | +13 ± 12 |
+| best 10 | 13.3 / 8.1 / 14.5 / 28.9 | +187 ± 39 | +1 ± 24 | −17 ± 18 |
+| own symbol only (10) | 11.5 / 7.4 / 10.9 / 24.7 | +387 ± 84 | +4 ± 43 | −79 ± 27 |
+| shrunk (ridge 0.1) | 13.1 / 8.5 / 16.4 / 29.1 | +103 ± 28 | −24 ± 19 | −69 ± 18 |
+| shrunk hard (ridge 1) | 12.0 / 7.6 / 14.3 / 26.1 | +202 ± 57 | −166 ± 49 | −231 ± 42 |
+| **in-sample** (fit on all 24, scored on the same 24) | | +120 ± 33 | **+120 ± 25** | +106 ± 21 |
+
+- **Optimism is small:** scoring the model on its own training sessions flatters it by $120 per
+  session under stress (4%). A badly overfit model would look much better in-sample than out.
+- **Feature count does not drive the result:** 10, 20 or 37 features earn the same under stress
+  (within ±$25). Shrinking the coefficients loses money. Dropping the other symbols' features cuts
+  CRRT's R² from 16.6 to 10.9, so the cross-symbol links are real signal, not noise.
+- **What is unstable:** the coefficients whose sign changes between fits are mostly the 60-120 s
+  momentum terms, and they carry little weight (stable coefficients carry 87-96% of the prediction).
+- **Decision:** keep the 37-feature model. The 20-feature one is equal, not better. The forecast is
+  worth about $1,040 of the $3,202 per session under stress (no-forecast run: $2,158); the rest comes
+  from quoting, and live calibration fades the forecast if it stops predicting.
+
 ## Your decisions
 
 1. **Push to GitHub?** Nothing is pushed. The auto-committer committed a 37 MB cache

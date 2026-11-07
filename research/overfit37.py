@@ -92,7 +92,8 @@ def main():
         same = (np.sign(B) == np.sign(B[0])).all(0)
         # weight = |coef| x feature RMS (its typical contribution to the prediction)
         Xa, _ = F.stack(frames, ys, names, cols)
-        w = np.abs(B.mean(0)) * np.sqrt((np.clip(Xa, -clipk * np.sqrt((Xa ** 2).mean(0)), None) ** 2).mean(0))
+        ca = clipk * np.sqrt((Xa ** 2).mean(0))
+        w = np.abs(B.mean(0)) * np.sqrt((np.clip(Xa, -ca, ca) ** 2).mean(0))
         stab[s] = (same.mean(), (w * same).sum() / w.sum(),
                    [cols[i] for i in np.argsort(-w)[:6]], [cols[i] for i in range(len(cols)) if not same[i] and w[i] > 0.05 * w.max()])
 
