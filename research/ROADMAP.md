@@ -1,0 +1,137 @@
+# Roadmap: everything to fix, improve and add before R1 (2026-11-06)
+
+Written after the first sandbox run of `alpha.py` (session sandbox-0196, batches 1215–2120, about
+15 minutes, logs in `research/sandbox_runs/`, summary from `research/sandbox_report.py`). Work top
+to bottom. Each item says why, what to do, and how to accept it. Tick items off here and record the
+result in one line, so the next session knows where things stand.
+
+## What the sandbox run showed
+
+| | sandbox (15 min) | backtest (per session, base rule) |
+|---|---|---|
+| markout, all fills, vs mid 60 s later | **−3.1¢/share, −$2,181** | +1.9¢ maker, +6.1¢ taker |
+| maker shares / markout | 53.7k / −1.6¢ | 286k / +1.93¢ |
+| taker shares / markout | **25.5k / −7.0¢** | **1.6k** / +6.1¢ |
+| forecast vs next 60 s move, correlation | **−0.35 to −0.73**, all four symbols | +0.2 to +0.55 (BNKY ≈ 0) |
+| typical 60 s move (sd) | HPPO 13¢, BNKY 14¢, CRRT 12¢, BRRY 7¢ | HPPO 7¢, BNKY 3¢, CRRT 1.6¢, BRRY 5.6¢ |
+| time with \|position\| ≥ 90% of soft cap | HPPO 31%, BNKY 41%, CRRT 11%, BRRY 2% | not measured yet |
+| self-trades | 1 (10 shares, $1 penalty): **fixed** | 0 |
+
+**What carries over and what doesn't.** The sandbox's prices and participants are placeholders
+(STRATEGY_GUIDE section 9, and its own news item says so), so the negative correlation says nothing
+about our model in the real market. What does carry over is how the strategy **behaves when its model
+is wrong**:
+
+1. **It never noticed.** It kept quoting and taking at full size for 15 minutes at −3¢/share.
+   Each competition session draws fresh market parameters, so some sessions will be off our
+   historical fit. Nothing in the code detects that.
+2. **Taking scales with the size of the error.** A wrong, large `fair − micro` produces more takes:
+   16× the backtest's taker volume in a third of a session, each losing 6–10¢. Takes earn about
+   $100/session in the backtest, which is little upside for that downside.
+3. **Inventory sits at the cap.** Skew is fixed cents (BNKY 1.5¢ at cap), so with larger moves the
+   position runs to ±cap and we quote one side only, which is the side the market is hitting.
+
+Mechanics were clean: on_batch 0.34 ms median (13 ms worst), at most 9 of 20 messages per batch,
+no missed batches or reconnects, `external()` correct on about 1,700 checks, and the news pause and
+rebase fired. Rejects: 67 UNKNOWN_ORDER (expected) and 6 EXPOSURE_LIMIT.
+
+## P0: robustness, before R1 (independent of the sandbox)
+
+Accept each P0 change under the existing rules: nested CV, stress `share=0.3+through=2+adverse` as
+the primary case, and base not worse by more than 10%. Also add a **model-failure scenario** to
+`evalx.py` and require P0 changes to improve it. To build it, run the strategy with its
+coefficients multiplied by −0.5, 0 (no model) and +2 (overconfident), and with prices rescaled to 2×
+volatility. Today the strategy has no defence in that scenario, and that is the sandbox's lesson.
+
+1. **Live skill monitor with auto-throttle** (largest item).
+   - **Measure, per symbol and online:**
+     - the rolling markout of our own fills against the mid 10, 30 and 60 s later (we know these
+       mids live);
+     - the rolling correlation of `fair − micro` with the realized 60 s move.
+   - **Three states:** *normal*; *defensive* (`make_edge` ×2, size ×0.5, taking off); *model off*
+     (quote symmetric around micro with a wide edge, or stop quoting the symbol).
+   - **Rules:** state changes need hysteresis and a minimum sample. Log every change.
+   - **GUI:** show the state with `self.record()`, and add a model param to force a state from the
+     GUI.
+   - **Accept:** it cuts the model-failure scenario's loss by more than half without costing base
+     more than 10%.
+2. **Gate taking hard, or default it off.**
+   - **Options:**
+     - make `take_on` default 0 until R1's report shows positive taker markout;
+     - or require a volatility-normalised signal (`|fair − micro|` / rolling sd of 60 s moves), a
+       healthy skill monitor, a taker-share budget per minute and a cooldown after each take.
+   - **Accept:** paired per-session comparison. The expected cost is at most about $100/session in
+     base.
+3. **Volatility-scaled parameters.** Scale `make_edge`, `take_edge`, `FAIR_CAP` and `SKEW` by a
+   rolling estimate of each symbol's volatility, measured as the sd of 60 s mid moves or the
+   average spread, relative to its historical median. Market parameters change every session, so
+   fixed cents are tuned to an average session. Check robustness across the historical sessions
+   bucketed by volatility.
+4. **Stronger inventory control.**
+   - **Changes:** nonlinear skew (gentle near 0, steep past 50% of cap), quote size shrinking with
+     \|position\|, and stopping the side that adds to the position before the cap, not at it.
+   - **Measure in the backtest:** time at ≥90% cap and markout split by inventory bucket.
+   - **Why:** score isn't charged for holding, but a pinned position means one-sided quoting.
+5. **Self-trade guard: done** (`own_at_or_through` in `alpha.py`; archive `alpha_v3.py`). Base
+   OOS $5,602 vs $5,600. Still to do: a unit test that builds a book with our own resting ask and
+   checks no take is sent at or through it.
+6. **The `external()` fallback is untested by every backtest.** In backtest mode it returns the raw
+   book, so the CV never runs the live branch.
+   - **The problem:** we were alone at the touch in about half of the at-touch batches. In that case
+     `external()` invents a level (the last one seen, or one tick behind with 100 shares) that feeds
+     the microprice and every return feature.
+   - **Fixes:** inject our own quotes into the recorded book in a backtest variant so this path
+     runs, and compare the fallbacks (last real level, mid of the known levels, freeze features).
+7. **EXPOSURE_LIMIT on replaces** (6 in 15 min). Find out why our 580 margin is not enough. The
+   likely cause is how the exchange counts a replace (old and new both in the worst case). It's
+   harmless for now (a skipped requote), but each one costs a message.
+8. **Self-impact.** At about 9k shares/min we may move a thin book, and the return features then
+   read our own impact as momentum. This can't be measured in the backtest (the book never reacts)
+   or on the sandbox (placeholder prices).
+   - **Mitigations to test:** smaller clip sizes; feature returns that skip batches right after our
+     own takes.
+   - **First real check:** R1's report, comparing markout by our trade size.
+
+## P1: edge (after P0)
+
+9. **News trading** (PROMPTS.md prompt 5). The largest untapped credited markout. Hooks: `on_news`,
+   `rebase()`, `FAIR_CAP` bypass. GUI kill switch for it. Test with `evalx` synthetic news plus
+   unit tests on made-up headlines. Sandbox news is placeholder: "news here moves nothing".
+10. **Adverse-selection defence** (prompt 3). Quote only the side the forecast favours when
+    \|fair − micro\| is large; widen the other side. Accept on maker ¢/share under stress.
+11. **Join, don't improve.** We were alone at the best price about half the time, so we are
+    setting new prices, and those get picked off first. Try joining the existing level unless the
+    edge is large. With 60–70 teams in the market, queue position and fill share are much worse
+    than in the backtest.
+12. **ETF identity and arbitrage** (prompts 2 and 4). HPPO = BNKY + 2 BRRY exactly in true value.
+    Tie the three forecasts together, and test an arbitrage leg (with the $0.02 conversion fee).
+13. **Horizon vs true value.** All research scores against the mid 60 s later; the 240-batch
+    markout is higher, so the true value may lead the mid. Re-check once R1 publishes true-value
+    paths.
+
+## P2: tooling and operations
+
+14. **Live dashboard in the trader GUI** with `self.record()`: fair − micro, rolling own markout,
+    skill state, position vs cap, messages used.
+15. **Unit tests** (`tests/`): take guard, `external()` branches, `room()` and exposure bounds, news
+    pause and rebase, halt cooldown, kill switch set in `on_start`.
+16. **Sandbox mechanics retest** after every change, with `research/sandbox_probe.py` (it runs
+    `alpha.py` unchanged and exits cleanly after `PROBE_BATCHES`). Judge only mechanics there: rejects,
+    messages, timing, halts. Never judge PnL or markout there.
+17. **Runbook** (prompt 7):
+    - **Before:** `pqt check` before each session; one algo key per program (a second copy
+      supersedes the first); `--cancel-on-disconnect`.
+    - **Kill switch:** the floor is set in `on_start`. Reconsider the floor: $20,000 never fires in
+      practice.
+    - **During:** which GUI knob to turn when, decided in advance (`take_on` off, `make_edge` up,
+      `size_scale` down, force the defensive state).
+18. **After R1** (score = R1 + 2 × R2, so R1 is our calibration run):
+    - **Inputs:** the official report's markout curves (1/10/30/60 s by symbol) and our fill log.
+    - **Decide for R2:** maker ¢/share (below about 1¢ means widen `make_edge`), taker markout
+      (keep or drop taking), fill share vs backtest, news repricing time (sets `news_pause`).
+    - **Prepare:** the analysis script, before R1.
+
+## What the sandbox can never tell us
+
+Real markout and adverse selection, live fill share against 60–70 teams, news repricing speed, the
+real market's volatility, and whether we move the market. All five wait for R1's report.
