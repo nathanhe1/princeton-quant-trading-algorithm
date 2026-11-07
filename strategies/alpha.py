@@ -198,6 +198,13 @@ class Alpha(Strategy):
     # 10 minutes (vs the external mid 60 s later). Negative at two checks running: level +1, at most 2
     # (1: size x 0.5, no taking; 2: also edge x 1.6). Positive at three checks running: level -1.
     THROTTLE_FROM = 0
+    # Size learner (research, off): per-symbol size factor starting at SIZE_START; every minute from
+    # batch SIZE_FROM, x SIZE_UP if the symbol's 10-minute own markout > SIZE_UP_AT c/share, x SIZE_DOWN
+    # if < 0, kept within [SIZE_MIN, SIZE_MAX]; needs SIZE_MIN_FILLS quote sizes of marked shares.
+    SIZE_LEARN = False
+    SIZE_START, SIZE_MIN, SIZE_MAX = 0.5, 0.33, 1.0
+    SIZE_UP, SIZE_DOWN, SIZE_UP_AT = 1.2, 0.7, 0.5
+    SIZE_FROM, SIZE_MIN_FILLS = 360, 5
     # Never quote more than MAX_IMPROVE ticks better than the external best price on our side
     # (None = no limit; 0 = only join or sit behind). Stops a quote reaching across a narrow spread,
     # where it is picked off first and can execute as a take when the book moves before our slot.
@@ -229,7 +236,8 @@ class Alpha(Strategy):
         self.var10 = {s: None for s in SYMS}
         self.n10 = {s: 0 for s in SYMS}
         self.own_fills = deque()  # (batch, symbol, signed qty, price) waiting 120 batches
-        self.own_marked = deque()  # (fill batch, markout cents x shares)
+        self.own_marked = deque()  # (fill batch, symbol, markout cents x shares, shares)
+        self.size_k = {s: self.SIZE_START for s in SYMS}
         self.thr_level, self.thr_neg, self.thr_pos = 0, 0, 0
         self.seen = 0  # batches seen by this program (a late start has no history yet)
         self.horizon = int(m.get("H", 120))
@@ -441,12 +449,14 @@ class Alpha(Strategy):
         while f and f[0][0] <= batch - self.horizon:
             b, s, q, px = f.popleft()
             if s in self.ext:
-                m.append((b, q * (self.ext[s].mid - px)))
+                m.append((b, s, q * (self.ext[s].mid - px), abs(q)))
         while m and m[0][0] < batch - self.horizon - 1200:
             m.popleft()
+        if self.SIZE_LEARN and self.seen >= self.SIZE_FROM and self.seen % 120 == 0:
+            self.learn_size(m)
         if not self.THROTTLE_FROM or self.seen < self.THROTTLE_FROM * 120 or self.seen % 120:
             return
-        mk = sum(x for _, x in m)
+        mk = sum(x[2] for x in m)
         self.thr_neg, self.thr_pos = (self.thr_neg + 1, 0) if mk < 0 else (0, self.thr_pos + 1)
         if self.thr_neg >= 2 and self.thr_level < 2:
             self.thr_level, self.thr_neg = self.thr_level + 1, 0
@@ -454,6 +464,26 @@ class Alpha(Strategy):
         elif self.thr_pos >= 3 and self.thr_level > 0:
             self.thr_level, self.thr_pos = self.thr_level - 1, 0
             self.log.info("throttle down to %d: 10-min markout $%.0f", self.thr_level, mk / 100)
+
+    def learn_size(self, marked) -> None:
+        """Per symbol: grow the size factor while our last 10 minutes of fills mark out well, shrink
+        it when they mark out badly (vs the mid 60 s later)."""
+        agg = {}
+        for _, s, mk, q in marked:
+            a = agg.setdefault(s, [0.0, 0])
+            a[0] += mk
+            a[1] += q
+        for s in SYMS:
+            mk, q = agg.get(s, (0.0, 0))
+            if q < self.SIZE_MIN_FILLS * self.QUOTE[s]:
+                continue
+            c = mk / q
+            k = self.size_k[s]
+            if c > self.SIZE_UP_AT:
+                k *= self.SIZE_UP
+            elif c < 0:
+                k *= self.SIZE_DOWN
+            self.size_k[s] = max(self.SIZE_MIN, min(self.SIZE_MAX, k))
 
     def vol_factor(self, s) -> float:
         if not self.VOL_GAMMA or self.var10[s] is None:
@@ -639,7 +669,7 @@ class Alpha(Strategy):
                 ask = max(ask, x.ask - self.MAX_IMPROVE)
             if bid >= ask:
                 continue
-            size = max(1, int(self.QUOTE[s] * scale / g))
+            size = max(1, int(self.QUOTE[s] * scale / g * (self.size_k[s] if self.SIZE_LEARN else 1.0)))
             bsize = asize = size
             sig = f - x.micro
             if self.ONE_SIDE_K and abs(sig) > self.ONE_SIDE_K * e:

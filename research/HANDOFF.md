@@ -108,3 +108,11 @@ python final_compare.py       # before/after table: base, stress, synthetic news
   - **Volatility-scaled edge** (`VOL_GAMMA`) 0.5 / 1.0: worse.
   - **Conclusion:** v8's parameters sit at the backtest optimum. Further gains need live
     information (R1). `ETF_PROJECT` and `VOL_GAMMA` stay in `alpha.py` at 0 (off).
+- **Per-symbol size learner** (`SIZE_LEARN`, off; `research/guards_eval.py`, 2026-11-07). Grows or
+  shrinks each symbol's size on its own 10-minute markout. Paired vs v9 per session, base / stress /
+  stress without adverse / model ×−1: starting at 0.5: −235 / −67 / −37 / −154; starting at 1.0:
+  −10 / −44 / −8 / −128. Ten minutes of one symbol's fills is too noisy, so it shrinks on bad luck.
+  Live learning beyond one number per symbol (calibration) has not paid: the markout guard, the
+  throttle and this learner were all rejected.
+- **Auto-throttle** (`THROTTLE_FROM`, off): costs nothing in healthy sessions, but −104 to −135
+  with a wrong model: it cuts size after calibration has already recovered.

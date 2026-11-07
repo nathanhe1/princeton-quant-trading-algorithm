@@ -28,7 +28,7 @@ if __name__ == "__main__":
         row = {"cfg": name}
         for scen, mult in CASES:
             lab = {"base": "base", ST: "stress", NA: "noadv"}[scen] + ("" if mult == 1 else f" x{mult:g}")
-            x, o = res[(name, scen, mult)], res[("off", scen, mult)]
+            x, o = res[(name, scen, mult)], res[(next(iter(CONFIGS)), scen, mult)]
             row[lab] = f"{x.mean():.0f} ({(x - o).mean():+.0f}±{(x - o).std() / len(x) ** .5:.0f})"
         rows.append(row)
     print(pd.DataFrame(rows).to_string(index=False))
