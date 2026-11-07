@@ -86,8 +86,8 @@ markout per share vs the mid 60 s later; one sandbox session per question so far
 |---|---|---|---|---|---|
 | quote cap (0205 + 0208, arms in both orders) | cap 2 ticks (v10) | **+1.41** (+2.46, +0.46) | 286k | +4,026 | yes, in both sessions |
 | | no cap | −0.25 (−0.40, −0.18) | 303k | −760 | |
-| make_edge (0203) | 1.5 (v10) | **−1.16** | 208k | −2,420 | yes (better per share, more volume) |
-| | 2.5 | −1.66 | 150k | −2,489 | |
+| make_edge (0203 + 0209, both orders) | 1.5 (v10) | **−0.65** (−1.16, −0.14) | 418k | −2,716 | yes, in both sessions (better per share, +30% volume; $ about equal) |
+| | 2.5 | −0.91 (−1.66, −0.25) | 320k | −2,920 | |
 | size_scale (0202) | 1.5 (v10) | **−1.10** | 106k | −1,162 | yes |
 | | 0.5 | −2.29 | 71k | −1,613 | |
 | takes (0207) | on (v10) | +0.16 | 204k | +327 | yes: no difference (backtest +$66/session) |
