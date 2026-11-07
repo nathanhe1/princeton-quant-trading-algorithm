@@ -192,8 +192,9 @@ class Alpha(Strategy):
     NEWS_SYM_PAUSE = 120  # any news naming the symbol (R1's routine items moved nothing)
     NEWS_DIR_PAUSE = 360  # a confident read: R1's CRRT fraud item was still repricing at 120 s (-232c)
     NEWS_BET_HOLD = 360
-    NEWS_BET_FRAC = 0.8  # of the exchange position limit (exposure still checked)
-    NEWS_SLIP = {"HPPO": 10, "BNKY": 5, "CRRT": 5, "BRRY": 10}
+    NEWS_BET_FRAC = 1.0  # of the exchange position limit (exposure still checked)
+    NEWS_SLIP = {"HPPO": 30, "BNKY": 15, "CRRT": 15, "BRRY": 25}  # R1: CRRT moved -232c, so paying through is cheap
+    NEWS_BURST = 4  # IOC orders per batch on a news bet (max order qty each): be filled before the reprice
     # Online calibration: per symbol, the decayed regression slope of the realized target
     # (mid H batches later minus micro now) on the model's adjustment, shrunk toward 1 by a prior
     # worth CALIB_PRIOR batches. The adjustment is scaled by that slope, clipped to [0, 1]: a model
@@ -799,16 +800,25 @@ class Alpha(Strategy):
             if self.open_orders(s):
                 self.cancel_all(s)
             maxq = self.symbol_info[s].max_order_qty
+            cap = int(self.NEWS_BET_FRAC * lim)
             if d > 0:
-                q = min(need, maxq, self.room(s, "BUY", lw, sw, cap=int(self.NEWS_BET_FRAC * lim)))
-                if q > 0:
-                    self.buy(s, q, x.ask + self.NEWS_SLIP[s], ioc=True)
-                    lw[s] += q
+                q = min(need, self.room(s, "BUY", lw, sw, cap=cap))
+                for _ in range(self.NEWS_BURST):
+                    c = min(q, maxq)
+                    if c <= 0:
+                        break
+                    self.buy(s, c, x.ask + self.NEWS_SLIP[s], ioc=True)
+                    lw[s] += c
+                    q -= c
             else:
-                q = min(-need, maxq, self.room(s, "SELL", lw, sw, cap=int(self.NEWS_BET_FRAC * lim)))
-                if q > 0:
-                    self.sell(s, q, x.bid - self.NEWS_SLIP[s], ioc=True)
-                    sw[s] -= q
+                q = min(-need, self.room(s, "SELL", lw, sw, cap=cap))
+                for _ in range(self.NEWS_BURST):
+                    c = min(q, maxq)
+                    if c <= 0:
+                        break
+                    self.sell(s, c, x.bid - self.NEWS_SLIP[s], ioc=True)
+                    sw[s] -= c
+                    q -= c
 
     def own_at_or_through(self, s, side, price) -> bool:
         """Do we rest an order on `side` that a take at `price` would trade against?"""
