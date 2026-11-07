@@ -54,7 +54,8 @@ class Probe(Alpha):
         super().on_fill(f)
         s = f.symbol
         self.emit("fill", batch=f.batch, sym=s, side=str(f.side), px=f.price, qty=f.qty,
-                  liq=str(f.liquidity), fee=f.fee, fair=self.fair.get(s),
+                  liq=str(f.liquidity), fee=f.fee_mills, pen=f.penalty_mills,
+                  self_trade=f.self_trade, aux=f.aux, fair=self.fair.get(s),
                   micro=self.ext[s].micro if s in self.ext else None)
 
     def on_news(self, item) -> None:
