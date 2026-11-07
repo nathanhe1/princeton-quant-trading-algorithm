@@ -31,6 +31,9 @@ v4 (ported from the PQT strategy; v3 is in strategies/archive/):
   fair value by a human view, in cents; with taking on, a big enough bias also takes). Reset
   bias to 0 afterwards.
 
+v8: the ETF arbitrage defaults to off (arb_on 0). On the sandbox most arbitrages filled only some
+legs, and even the backtest, which has no leg risk, scores it below zero. v7 is in the archive.
+
 v7: book imbalance at the touch is a feature, and every feature is winsorised at 3x its training
 RMS (`clip` in the model JSON; research/fit_imb_clip3.py). v6 = v5 + hardening and news (off).
 
@@ -138,7 +141,7 @@ class Alpha(Strategy):
         ParamSpec("enabled", ParamKind.BOOL, 1, 0, 1),  # 0: cancel everything and stop
         ParamSpec("calib_on", ParamKind.BOOL, 1, 0, 1),  # scale the model by its live calibration
         ParamSpec("expo_lean", ParamKind.FLOAT, 3.0, 0.0, 20.0),  # c of lean against net exposure at the cap
-        ParamSpec("arb_on", ParamKind.BOOL, 1, 0, 1),  # ETF vs basket arbitrage
+        ParamSpec("arb_on", ParamKind.BOOL, 0, 0, 1),  # ETF vs basket arbitrage (off: legs rarely all fill live)
         ParamSpec("arb_min", ParamKind.FLOAT, 1.0, -2.0, 30.0),  # c/unit beyond 4 taker fees + 2c conversion
         ParamSpec("recycle_on", ParamKind.BOOL, 1, 0, 1),  # convert matched HPPO vs basket inventory
         ParamSpec("bias_HPPO", ParamKind.FLOAT, 0.0, -200.0, 200.0),  # human fair-value shift, cents

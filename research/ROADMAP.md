@@ -115,6 +115,16 @@ and 7 EXPOSURE_LIMIT. No halts happened, so halt handling is still untested live
   - **Checks:** hardening replays and unit tests pass.
   - **Live caveat:** when we are alone at the touch, imbalance uses `external()`'s guessed level.
 
+- **2026-11-07, v8 = v7 with `arb_on` defaulting to 0.**
+  - **Sandbox (sandbox-0199, v7):** of 9 arbitrages, at most 2 filled every leg; several filled
+    one leg or none. The IOCs are priced off the previous batch's book.
+  - **Backtest (no leg risk at all), arb off vs on, $/session:** base +228 ± 45, stress +113 ± 32,
+    stress without adverse +124 ± 32, better in 19/24 sessions each. Worst sessions improve.
+  - **Result:** OOS base $6,382 (worst $3,912), stress $1,661 (worst $471).
+  - **Caveat:** the true-value score credits a completed set its exact gap, which mid marking
+    understates, but live sets rarely complete.
+  - Recycling stays on; `arb_on` stays in the GUI.
+
 ## P0: robustness, before R1 (independent of the sandbox)
 
 Accept each P0 change under the existing rules: nested CV, stress `share=0.3+through=2+adverse` as
