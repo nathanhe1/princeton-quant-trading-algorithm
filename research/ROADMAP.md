@@ -75,6 +75,23 @@ and 7 EXPOSURE_LIMIT. No halts happened, so halt handling is still untested live
     nothing sent into a visible halt or its cooldown, no RATE_LIMIT, at most 12 msgs/batch.
   - **Runbook:** `RUNBOOK.md`. Base OOS unchanged at $6,232.
 - **Rejected: own-fill markout guard** (see HANDOFF.md "Rejected").
+- **2026-11-06, news trading (prompt 5), built and kept off.**
+  - **Code:** `read_news()` in `alpha.py` is a keyword parser. It acts only on one stock named,
+    one-sided keywords and no negation, and propagates BNKY/BRRY news to HPPO. A confident read sets
+    a fair-value target (pre-news micro + `news_move` × the symbol's typical 60 s move) for
+    `news_hold` batches. GUI: `news_trade` (default **0**), `news_move`, `news_hold`.
+  - **Evaluation:** `research/news_eval.py` on evalx synthetic news (directional headlines; `flip`
+    = misread). $/session gain vs off, base / stress:
+
+    | repricing | read right | misread |
+    |---|---|---|
+    | instant | −31 / −1 | −388 / −197 |
+    | 10 s | +436 / +489 | −1,676 / −1,414 |
+    | 30 s | +599 / +786 | −2,046 / −1,690 |
+
+  - **Decision:** break-even needs the parser right on about 70–75% of the items it acts on, and the
+    real news format is unknown (the sandbox shows only "routine notice"). Turn it on for R2 only if
+    R1's news reads correctly and repricing takes ≥ 10 s. Paste R1's real items into a test.
 
 ## P0: robustness, before R1 (independent of the sandbox)
 

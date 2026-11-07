@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from cv import FOLDS, pick  # noqa: E402
 from evalx import evaluate, evaluate_pairs  # noqa: E402
 
-SCEN = ["base", "share=0.3+through=2+adverse"]
+SCEN = os.environ.get("SCEN", "base,share=0.3+through=2+adverse").split(",")
 
 
 def run(name, scen):
