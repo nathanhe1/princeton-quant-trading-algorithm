@@ -27,7 +27,7 @@ is wrong**:
    Each competition session draws fresh market parameters, so some sessions will be off our
    historical fit. Nothing in the code detects that.
 2. **Taking scales with the size of the error.** A wrong, large `fair − micro` produces more takes:
-   16× the backtest's taker volume in a third of a session, each losing 6–10¢. Takes earn about
+   18× a whole backtest session's taker volume in 10 minutes, losing 6¢ a share on average. Takes earn about
    $100/session in the backtest, which is little upside for that downside.
 3. **Inventory sits at the cap.** Skew is fixed cents (BNKY 1.5¢ at cap), so with larger moves the
    position runs to ±cap and we quote one side only, which is the side the market is hitting.
