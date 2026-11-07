@@ -3,5 +3,9 @@
   "python.terminal.activateEnvironment": true,
   "python.analysis.extraPaths": ["${workspaceFolder}/research"],
   "files.exclude": { "**/__pycache__": true },
-  "search.exclude": { "data/**": true, ".venv/**": true }
+  "search.exclude": {
+    "data/**": true,
+    ".venv/**": true
+  },
+  "python.terminal.useEnvFile": true
 }
