@@ -84,7 +84,7 @@ volatility. Today the strategy has no defence in that scenario, and that is the 
      the microprice and every return feature.
    - **Fixes:** inject our own quotes into the recorded book in a backtest variant so this path
      runs, and compare the fallbacks (last real level, mid of the known levels, freeze features).
-7. **EXPOSURE_LIMIT on replaces** (6 in 15 min). Find out why our 580 margin is not enough. The
+7. **EXPOSURE_LIMIT on replaces** (7 in 10 min). Find out why our 580 margin is not enough. The
    likely cause is how the exchange counts a replace (old and new both in the worst case). It's
    harmless for now (a skipped requote), but each one costs a message.
 8. **Self-impact.** At about 9k shares/min we may move a thin book, and the return features then
