@@ -145,7 +145,7 @@ class Alpha(Strategy):
         ParamSpec("news_trade", ParamKind.BOOL, 0, 0, 1),  # trade a confident read of the news
         ParamSpec("news_move", ParamKind.FLOAT, 2.0, 0.0, 10.0),  # assumed jump, x typical 60 s move
         ParamSpec("news_hold", ParamKind.INT, 60, 0, 600),  # batches the news target stays in fair
-        ParamSpec("kill_floor", ParamKind.INT, 20000, 0, 1000000),  # $ realized loss; 0 = off
+        ParamSpec("kill_floor", ParamKind.INT, 2000, 0, 1000000),  # $ realized loss; 0 = off (see RUNBOOK)
         # v4, ported from the PQT strategy and checked by nested CV (ANALYSIS.md appendix D)
         ParamSpec("enabled", ParamKind.BOOL, 1, 0, 1),  # 0: cancel everything and stop
         ParamSpec("calib_on", ParamKind.BOOL, 1, 0, 1),  # scale the model by its live calibration
@@ -249,9 +249,7 @@ class Alpha(Strategy):
         self.cal = {s: [0.0, 0.0, 0.0] for s in SYMS}  # decayed sums: p*y, p*p, count
         self.cal_decay = 0.5 ** (1.0 / self.CALIB_HALFLIFE)
         self.k = {s: 1.0 for s in SYMS}
-        floor = int(self.param("kill_floor"))
-        if floor > 0:
-            self.set_kill_switch(-floor * 1000)
+        self.kill_armed = False  # set in the first batch, once realized PnL is known
 
     def on_fill(self, fill) -> None:
         self.own_fills.append((fill.batch, fill.symbol, fill.qty if fill.side == "BUY" else -fill.qty, fill.price))
@@ -283,6 +281,24 @@ class Alpha(Strategy):
                 self.news_batch = item.batch
                 self.news_ref = {s: e.micro for s, e in self.ext.items()}
             self.rebase_at = max(self.rebase_at or 0, item.batch + max(pause, 1))
+
+    def arm_kill_switch(self, state) -> None:
+        """Set the realized-PnL floor, unless we are already below it (a restart after a loss must
+        not block the whole team at once: a human decides)."""
+        self.kill_armed = True
+        floor = int(self.param("kill_floor"))
+        realized = state.portfolio.realized_pnl_mills
+        if floor <= 0:
+            self.set_kill_switch(None)
+        elif realized > -floor * 1000:
+            self.set_kill_switch(-floor * 1000)
+        else:
+            self.log.warning("kill switch NOT set: realized PnL $%.0f is already below the -$%d floor; "
+                             "set it in the GUI if wanted", realized / 1000, floor)
+
+    def on_model_params(self, changed) -> None:
+        if "kill_floor" in changed and self.state is not None:
+            self.arm_kill_switch(self.state)  # a new floor from the GUI takes effect at once
 
     def on_reconnect(self) -> None:
         pass  # resting orders are still there and a news pause stays in force: carry on
@@ -608,6 +624,8 @@ class Alpha(Strategy):
                 self.cancel_all()
             return
         self.seen += 1
+        if not self.kill_armed:
+            self.arm_kill_switch(state)
         if not ready or self.seen <= WARMUP or state.final or state.blocked:
             return
         self.compute_fair(state.batch)

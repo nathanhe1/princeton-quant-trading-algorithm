@@ -20,9 +20,16 @@ fills. Estimated PnL in the GUI is **not** the score: don't react to it alone.
   `.venv/bin/python tests/test_alpha_live.py`, then from `research/`: `../.venv/bin/python
   hardening.py` (24 replays with halts, one-sided books, dropout, late start, news) and
   `../.venv/bin/python final_cv.py`.
-- [ ] **Decide the kill switch.** `kill_floor` is $20,000 of realized loss, which in practice never
-  fires. Realized PnL = score + luck, so too tight a floor can stop a good session. Pick a floor as
-  a team, in the GUI or as the default, before R1.
+- [ ] **Kill switch: default floor −$2,000 of realized PnL** (`kill_floor` 2000, set in `on_start`).
+  In `research/killswitch_study.py` the deepest intra-session realized PnL across all 24 historical
+  sessions, in every scenario including a wrong-signed model under stress, is −$411. The v8 disaster
+  on the sandbox reached −$1,954 by minute 12. So −$2,000 never trips a healthy session and does
+  stop a runaway. When it fires, the exchange cancels the team's orders for the rest of the session.
+  The floor is team-wide (manual GUI fills count too) and watches **realized** PnL only: a position
+  going bad without being closed does not trip it. Watch the markout line and estimated PnL as
+  well. The strategy arms the floor in its first batch, and skips it (with a warning) if realized
+  PnL is already below it after a restart. Changing `kill_floor` in the panel applies at once.
+  Only `strategies/alpha.py` runs in R1/R2: archive copies declare a different parameter list.
 - [ ] Laptop: wired network, plugged in, and `caffeinate -i` in a spare terminal (macOS).
 
 ## Start of each session (R1, then R2)

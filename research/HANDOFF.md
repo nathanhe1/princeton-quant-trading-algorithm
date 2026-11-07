@@ -140,3 +140,6 @@ python final_compare.py       # before/after table: base, stress, synthetic news
   - **Skew ×1.5:** +16 stress, −78 without adverse, +161 with model ×−1.
   - **Quotes HPPO/BRRY ×1.5:** +32 stress, +16 without adverse, −12 at 10% share, +490 base.
     Nested CV picked it on a $13 objective margin: noise in the cases that matter, so not adopted.
+- **Calibration settings at v10** (`charts/data/nested_calib_v10.csv`): prior 600/2400, half-life
+  1200/4800 are all within ±20 in healthy cases. Prior 600 is +118 with model ×−1, prior 2400 −320.
+  Nested CV split between v10 and half-life 1200 (+6). Kept.

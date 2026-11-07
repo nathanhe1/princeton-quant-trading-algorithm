@@ -151,8 +151,8 @@ def _one(job):
         if coef_mult is not None:
             m = strat.model
             strat.model = {**m, "coef": {s: {k: v * coef_mult for k, v in c.items()} for s, c in m["coef"].items()}}
-        if over:
-            strat.params_override = over
+        # research replays run without the kill switch unless a config sets kill_floor itself
+        strat.params_override = {"kill_floor": 0, **(over or {})}
         for k, v in (attrs or {}).items():
             setattr(strat, k, v)
         fills = []

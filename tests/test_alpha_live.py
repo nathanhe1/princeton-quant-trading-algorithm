@@ -115,6 +115,21 @@ def test_read_news():
                      "Nothing learned on the sandbox transfers to the competition's market.") == {}
 
 
+
+def test_kill_switch_arms_only_above_floor():
+    def run(realized_mills, floor=2000):
+        a = Fake()
+        a.params_override["kill_floor"] = floor
+        got = []
+        a.set_kill_switch = got.append
+        a.log = NS(warning=lambda *x: got.append("warned"))
+        a.arm_kill_switch(NS(portfolio=NS(realized_pnl_mills=realized_mills)))
+        return got
+    assert run(0) == [-2_000_000]
+    assert run(-1_500_000) == [-2_000_000]
+    assert run(-2_100_000) == ["warned"]  # a restart after a big loss must not block the team at once
+    assert run(-5_000_000, floor=0) == [None]  # 0 = off
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):
