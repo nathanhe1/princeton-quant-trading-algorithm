@@ -134,3 +134,9 @@ python final_compare.py       # before/after table: base, stress, synthetic news
   stress −3/+1), −52 base at 1.3×. On the sandbox recording at 1.5× it saves $54 under stress but
   costs $110 under the base rule: the sandbox's pick-offs (~7¢/share) dwarf any sensible widening.
   No benefit shown, so it stays off.
+- **Round 2 around v10** (`charts/data/nested_v10_round2.csv`), paired vs v10, stress:
+  - **Per-symbol caps:** BNKY 1 −548; BRRY 3/4 −117/−240; CRRT 3 −284. Uniform 2 is best.
+  - **Inventory cap BRRY 600:** +9.
+  - **Skew ×1.5:** +16 stress, −78 without adverse, +161 with model ×−1.
+  - **Quotes HPPO/BRRY ×1.5:** +32 stress, +16 without adverse, −12 at 10% share, +490 base.
+    Nested CV picked it on a $13 objective margin: noise in the cases that matter, so not adopted.
