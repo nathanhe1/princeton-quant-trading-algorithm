@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.." && set -a && . ./.env && set +a
 LOG=research/sandbox_runs/rehearsal_$(date +%H%M).log
 sess() { .venv/bin/pqt check --server "$PQT_SERVER" --key "$PQT_API_KEY_ALGO2" 2>&1 | grep -o "session [^ ]* is [A-Z]*, batch [^ ]*"; }
 START=$(sess | awk '{print $2}')
-until s=$(sess) && [ "$(echo "$s" | awk '{print $2}')" != "$START" ] && echo "$s" | grep -qE "ARMED|batch (None|[0-9]{1,2})$"; do sleep 15; done
+[ "$NOW" = 1 ] && s=$(sess) || until s=$(sess) && [ "$(echo "$s" | awk '{print $2}')" != "$START" ] && echo "$s" | grep -qE "ARMED|batch (None|[0-9]{1,2})$"; do sleep 15; done
 NAME=$(echo "$s" | awk '{print $2}'); echo "$(date +%H:%M:%S) starting on $s" | tee "$LOG"
 PROBE_BATCHES=0 PROBE_TAG="rehearsal:$NAME" .venv/bin/pqt run research/sandbox_probe.py:Probe --mode test --cancel-on-disconnect \
     --server "$PQT_SERVER" --key "$PQT_API_KEY" >> "$LOG" 2>&1 &

@@ -51,8 +51,10 @@ PROBE_BATCHES=0 pqt run research/sandbox_probe.py:Probe --mode live --cancel-on-
 - You can start early: it waits for the session.
 - **Start a fresh process for each session.** Once a process sees a session end, the SDK refuses
   every later order client-side ("the session has ended"), so a logger left running from R1 sits
-  idle through R2 while looking connected (positions stay 0, est PnL $0). Stop it with Ctrl-C after
-  R1 and run the command again for R2.
+  idle through R2 while looking connected (positions stay 0, est PnL $0). Worse, when R2 opens, that
+  idle process declares R2's parameter list with **its** defaults, and the list is then locked for
+  R2 (seen on the sandbox: a leftover logger locked in make_edge 2.5 and a $20,000 kill switch). Stop
+  it with Ctrl-C right after R1 ends, before R2 opens, and run the command again for R2.
 - `--cancel-on-disconnect` means our quotes are pulled if the laptop drops.
 - One member opens the trader GUI (`<COMPETITION_URL>/trade/`) and takes the **control token** for
   the model panel. Check the panel lists every parameter (`make_edge` … `pause_BRRY`, `calib_on`).
