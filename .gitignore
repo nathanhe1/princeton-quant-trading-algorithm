@@ -9,3 +9,4 @@ pqt-runs/
 research/sandbox_runs/
 research/variants/raw_cache.pkl
 *.pkl
+research/sandbox_data/

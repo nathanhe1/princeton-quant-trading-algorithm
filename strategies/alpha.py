@@ -185,6 +185,14 @@ class Alpha(Strategy):
     VOL_GAMMA = 0.0
     VOL_REF = {"HPPO": 2.157, "BNKY": 0.968, "CRRT": 1.068, "BRRY": 2.317}  # median sd of 10-batch mid moves
     VOL_HALFLIFE = 1200
+    # Volatility guard (0 = off): once a symbol's live 5 s move sd exceeds VOL_GUARD x its historical
+    # median, edge x g and size / g with g = sd / (VOL_GUARD x median). Meant to act only outside the
+    # historical range (session maxima: median ~1.1x, highest 1.7-2.7x).
+    VOL_GUARD = 0.0
+    # Auto-throttle (0 = off): every minute from minute THROTTLE_FROM, our fills' markout over the last
+    # 10 minutes (vs the external mid 60 s later). Negative at two checks running: level +1, at most 2
+    # (1: size x 0.5, no taking; 2: also edge x 1.6). Positive at three checks running: level -1.
+    THROTTLE_FROM = 0
     ONE_SIDE_WIDEN = 0.0
     model = MODEL
     params_override: dict | None = None  # for research sweeps
@@ -210,6 +218,10 @@ class Alpha(Strategy):
         self.news_target = {}  # symbol -> (target price, direction, last batch) from a news read
         self.mid10 = {s: deque(maxlen=11) for s in SYMS}
         self.var10 = {s: None for s in SYMS}
+        self.n10 = {s: 0 for s in SYMS}
+        self.own_fills = deque()  # (batch, symbol, signed qty, price) waiting 120 batches
+        self.own_marked = deque()  # (fill batch, markout cents x shares)
+        self.thr_level, self.thr_neg, self.thr_pos = 0, 0, 0
         self.seen = 0  # batches seen by this program (a late start has no history yet)
         self.horizon = int(m.get("H", 120))
         self.adj_hist = {s: deque(maxlen=self.horizon + 1) for s in SYMS}  # (adj, micro) per batch
@@ -221,6 +233,7 @@ class Alpha(Strategy):
             self.set_kill_switch(-floor * 1000)
 
     def on_fill(self, fill) -> None:
+        self.own_fills.append((fill.batch, fill.symbol, fill.qty if fill.side == "BUY" else -fill.qty, fill.price))
         if fill.liquidity == "TAKER":
             self.own_taker[fill.symbol] += fill.qty if fill.side == "BUY" else -fill.qty
 
@@ -315,9 +328,12 @@ class Alpha(Strategy):
                 h10.append(self.ext[s].mid)
                 if len(h10) == 11:
                     d2 = (h10[-1] - h10[0]) ** 2
-                    a = 1 - 0.5 ** (1 / self.VOL_HALFLIFE)
-                    v = self.var10[s]
-                    self.var10[s] = d2 if v is None else v + a * (d2 - v)
+                    n = self.n10[s] = self.n10[s] + 1
+                    v = self.var10[s] or 0.0
+                    if n <= 240:  # plain mean while warming up, then exponential
+                        self.var10[s] = v + (d2 - v) / n
+                    else:
+                        self.var10[s] = v + (1 - 0.5 ** (1 / self.VOL_HALFLIFE)) * (d2 - v)
             self.f_hist[s].append(flow[s])
         if self.rebase_at is not None and state.batch >= self.rebase_at:
             self.rebase(state.batch)
@@ -404,6 +420,31 @@ class Alpha(Strategy):
         f["HPPO"] -= v["HPPO"] * lam
         f["BNKY"] += v["BNKY"] * lam
         f["BRRY"] += 2 * v["BRRY"] * lam
+
+    def vol_guard(self, s) -> float:
+        if not self.VOL_GUARD or self.n10[s] < 120:
+            return 1.0
+        return max(1.0, math.sqrt(self.var10[s]) / (self.VOL_GUARD * self.VOL_REF[s]))
+
+    def throttle(self, batch) -> None:
+        """Mark our fills 60 s on; once a minute move the throttle level on the 10-minute markout."""
+        f, m = self.own_fills, self.own_marked
+        while f and f[0][0] <= batch - self.horizon:
+            b, s, q, px = f.popleft()
+            if s in self.ext:
+                m.append((b, q * (self.ext[s].mid - px)))
+        while m and m[0][0] < batch - self.horizon - 1200:
+            m.popleft()
+        if not self.THROTTLE_FROM or self.seen < self.THROTTLE_FROM * 120 or self.seen % 120:
+            return
+        mk = sum(x for _, x in m)
+        self.thr_neg, self.thr_pos = (self.thr_neg + 1, 0) if mk < 0 else (0, self.thr_pos + 1)
+        if self.thr_neg >= 2 and self.thr_level < 2:
+            self.thr_level, self.thr_neg = self.thr_level + 1, 0
+            self.log.info("throttle up to %d: 10-min markout $%.0f", self.thr_level, mk / 100)
+        elif self.thr_pos >= 3 and self.thr_level > 0:
+            self.thr_level, self.thr_pos = self.thr_level - 1, 0
+            self.log.info("throttle down to %d: 10-min markout $%.0f", self.thr_level, mk / 100)
 
     def vol_factor(self, s) -> float:
         if not self.VOL_GAMMA or self.var10[s] is None:
@@ -530,8 +571,9 @@ class Alpha(Strategy):
         if self.ETF_PROJECT:
             self.project_etf()
         quoting = bool(self.param("make_on")) and state.batch >= self.pause_until
-        take_on = bool(self.param("take_on"))
-        scale = float(self.param("size_scale"))
+        self.throttle(state.batch)
+        take_on = bool(self.param("take_on")) and self.thr_level == 0
+        scale = float(self.param("size_scale")) * (0.5 if self.thr_level else 1.0)
         lean = float(self.param("expo_lean"))
         lw, sw = self.worst_case()
         arb = self.trade_arb(state, lw, sw) if self.param("arb_on") else set()
@@ -556,7 +598,7 @@ class Alpha(Strategy):
             pos = self.position(s)
             # --- take
             if take_on:
-                take_edge = TAKER_FEE + float(self.param("take_edge")) * mult
+                take_edge = TAKER_FEE + float(self.param("take_edge")) * mult * self.vol_guard(s)
                 maxq = self.symbol_info[s].max_order_qty
                 # x is the book without our orders, so a take at x's price would first hit any of
                 # our own quotes at or through it (a self-trade, penalised): skip until it moves.
@@ -579,12 +621,13 @@ class Alpha(Strategy):
             # lean against net exposure too (from PQT): the strategy is exposure-capped, so steering
             # E back toward 0 frees capacity on both sides
             centre -= lean * E / EXPOSURE_CAP * (1 if WEIGHT[s] > 0 else -1) * min(1.0, abs(WEIGHT[s]) * 2)
-            e = float(self.param("make_edge")) * mult * self.vol_factor(s)
+            g = self.vol_guard(s)
+            e = float(self.param("make_edge")) * mult * self.vol_factor(s) * g * (1.6 if self.thr_level >= 2 else 1.0)
             bid = min(math.floor(centre - e), x.ask - 1)  # never cross the (external) book
             ask = max(math.ceil(centre + e), x.bid + 1)
             if bid >= ask:
                 continue
-            size = max(1, int(self.QUOTE[s] * scale))
+            size = max(1, int(self.QUOTE[s] * scale / g))
             bsize = asize = size
             sig = f - x.micro
             if self.ONE_SIDE_K and abs(sig) > self.ONE_SIDE_K * e:
