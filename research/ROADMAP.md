@@ -79,7 +79,7 @@ volatility. Today the strategy has no defence in that scenario, and that is the 
    checks no take is sent at or through it.
 6. **The `external()` fallback is untested by every backtest.** In backtest mode it returns the raw
    book, so the CV never runs the live branch.
-   - **The problem:** we were alone at the touch in about half of the at-touch batches. In that case
+   - **The problem:** we were alone at the touch in 57% of the at-touch batches. In that case
      `external()` invents a level (the last one seen, or one tick behind with 100 shares) that feeds
      the microprice and every return feature.
    - **Fixes:** inject our own quotes into the recorded book in a backtest variant so this path
