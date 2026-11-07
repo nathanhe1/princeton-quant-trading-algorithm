@@ -317,6 +317,12 @@ class Alpha(Strategy):
                 self.keep_quote(s, Side.BUY, bid, size, lw, sw)
                 self.keep_quote(s, Side.SELL, ask, size, lw, sw)
 
+    def own_at_or_through(self, s, side, price) -> bool:
+        """Do we rest an order on `side` that a take at `price` would trade against?"""
+        if side == "SELL":
+            return any(o.side == "SELL" and o.price <= price for o in self.open_orders(s))
+        return any(o.side == "BUY" and o.price >= price for o in self.open_orders(s))
+
     def keep_quote(self, s, side, price, size, lw, sw) -> None:
         """Leave exactly one resting order on `side` at `price`, with as few messages as
         possible (a few UNKNOWN_ORDER rejects are expected when a quote fills as we move it)."""
