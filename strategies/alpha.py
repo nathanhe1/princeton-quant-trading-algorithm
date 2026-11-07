@@ -130,6 +130,8 @@ class Alpha(Strategy):
             self.log.info("news at batch %d (%s): quotes off for %d batches", item.batch, item.headline, pause)
             self.pause_until = max(self.pause_until, item.batch + pause)
             self.cancel_all()
+        for h in self.adj_hist.values():  # a news jump is not the model's error: drop pending samples
+            h.clear()
         if self.NEWS_REBASE:
             if self.rebase_at is None:  # keep the reference from before the first of several items
                 self.news_batch = item.batch
