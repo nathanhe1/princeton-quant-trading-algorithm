@@ -126,3 +126,7 @@ python final_compare.py       # before/after table: base, stress, synthetic news
     1.0: −$520, 0.5: −$631 per 13 min under stress).
   - **make_edge:** nested CV picked 0.5, the bottom of the grid; 1.5 was adopted as the risk
     trade-off (v10).
+- **imb + flow-by-trade-size + clip3 on v10** (`research/variants/imb_size.py`): OOS R² up (HPPO
+  .128→.141, BNKY .088→.090, CRRT .165→.166, BRRY .288→.291), but paired markout vs v10 is flat:
+  base +22±49, stress +16±40, without adverse 0±33, 10% share +7±24, model ×−1 −7±13. Not worth
+  the extra live code (per-fill big/small own-flow removal).

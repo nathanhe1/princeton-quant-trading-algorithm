@@ -16,10 +16,12 @@ if __name__ == "__main__":
     names = json.load(open(os.path.join(D, "manifest.json")))["sessions"]
     for path in sys.argv[1:]:
         for scen in ("base", "share=0.3+through=2+adverse"):
-            for over in json.loads(os.environ.get("CHECK_OVERS", '[{"size_scale": 1.5}, {"size_scale": 0.5}]')):
+            for cfg in json.loads(os.environ.get("CHECK_OVERS", '[{"size_scale": 1.5}, {"size_scale": 0.5}]')):
+                cfg = dict(cfg)
+                attrs = cfg.pop("_attrs", None)  # class attributes, e.g. VOL_GUARD
                 for n in names:
-                    s, f = evalx._one((os.path.abspath(path), None, n, scen, over, None, None))
-                    size = json.dumps(over)
+                    s, f = evalx._one((os.path.abspath(path), None, n, scen, cfg or None, attrs, None))
+                    size = json.dumps({**cfg, **(attrs or {})})
                     mk = f[f.liq.str.contains("MAKER")]
                     tk = f[f.liq.str.contains("TAKER")]
                     c = lambda x: x.mk120.sum() / max(1, x.q.abs().sum())  # noqa: E731
