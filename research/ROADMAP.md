@@ -32,9 +32,10 @@ is wrong**:
 3. **Inventory sits at the cap.** Skew is fixed cents (BNKY 1.5¢ at cap), so with larger moves the
    position runs to ±cap and we quote one side only, which is the side the market is hitting.
 
-Mechanics were clean: on_batch 0.34 ms median (13 ms worst), at most 9 of 20 messages per batch,
-no missed batches or reconnects, `external()` correct on about 1,700 checks, and the news pause and
-rebase fired. Rejects: 67 UNKNOWN_ORDER (expected) and 6 EXPOSURE_LIMIT.
+Mechanics were clean: on_batch 0.33 ms median (13 ms worst), at most 9 of 20 messages per batch,
+no missed batches or reconnects, `external()` correct on all 3,160 at-touch checks, the news pause
+and rebase fired, and the probe exited with no orders left. Rejects: 78 UNKNOWN_ORDER (expected)
+and 7 EXPOSURE_LIMIT. No halts happened, so halt handling is still untested live.
 
 ## P0: robustness, before R1 (independent of the sandbox)
 
