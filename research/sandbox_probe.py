@@ -25,6 +25,14 @@ STOP_AFTER = int(os.environ.get("PROBE_BATCHES", "1200"))
 
 class Probe(Alpha):
     def on_start(self) -> None:
+        # control runs: PROBE_COEF_MULT scales every coefficient (0 = no model);
+        # PROBE_OVERRIDE='{"size_scale": 0.5}' overrides model params locally
+        mult = os.environ.get("PROBE_COEF_MULT")
+        if mult is not None:
+            m = self.model
+            self.model = {**m, "coef": {s: {k: v * float(mult) for k, v in c.items()} for s, c in m["coef"].items()}}
+        if os.environ.get("PROBE_OVERRIDE"):
+            self.params_override = json.loads(os.environ["PROBE_OVERRIDE"])
         super().on_start()
         OUT_DIR.mkdir(exist_ok=True)
         self.path = OUT_DIR / time.strftime("%Y%m%dT%H%M%SZ.jsonl", time.gmtime())
@@ -34,7 +42,8 @@ class Probe(Alpha):
         self.rejects = Counter()
         self.halted = {s: False for s in SYMS}
         self.last_wall = None
-        self.emit("start", session=getattr(self.session, "session_id", str(self.session)),
+        self.emit("start", coef_mult=os.environ.get("PROBE_COEF_MULT"), override=self.params_override,
+                  session=getattr(self.session, "session_id", str(self.session)),
                   params=dict(self.model_params), limits=str(self.limits),
                   symbol_info={s: str(i) for s, i in self.symbol_info.items()})
         self.log.info("probe logging to %s", self.path)
