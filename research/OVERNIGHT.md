@@ -90,6 +90,8 @@ markout per share vs the mid 60 s later; one sandbox session per question so far
 | | 2.5 | −1.66 | 150k | −2,489 | |
 | size_scale (0202) | 1.5 (v10) | **−1.10** | 106k | −1,162 | yes |
 | | 0.5 | −2.29 | 71k | −1,613 | |
+| takes (0207) | on (v10) | +0.16 | 204k | +327 | yes: no difference (backtest +$66/session) |
+| | off | +0.31 | 179k | +563 | |
 
 - **The sandbox is a hostile, out-of-range market** and each row is one session (4-5 blocks per
   arm, block-to-block noise of several hundred $), so these are weak evidence. They are useful
