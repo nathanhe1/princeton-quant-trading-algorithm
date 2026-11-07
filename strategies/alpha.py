@@ -189,8 +189,10 @@ class Alpha(Strategy):
     # direction x conf x CAP with IOC orders up to NEWS_SLIP ticks through the touch (closing a
     # position on the wrong side first), for NEWS_BET_HOLD batches. Scoring credits fills after the
     # headline with the jump, and prices took over a minute to catch up in R1.
-    NEWS_SYM_PAUSE = 120
-    NEWS_BET_HOLD = 120
+    NEWS_SYM_PAUSE = 120  # any news naming the symbol (R1's routine items moved nothing)
+    NEWS_DIR_PAUSE = 360  # a confident read: R1's CRRT fraud item was still repricing at 120 s (-232c)
+    NEWS_BET_HOLD = 360
+    NEWS_BET_FRAC = 0.8  # of the exchange position limit (exposure still checked)
     NEWS_SLIP = {"HPPO": 10, "BNKY": 5, "CRRT": 5, "BRRY": 10}
     # Online calibration: per symbol, the decayed regression slope of the realized target
     # (mid H batches later minus micro now) on the model's adjustment, shrunk toward 1 by a prior
@@ -289,6 +291,7 @@ class Alpha(Strategy):
             read = read_news(item.headline, item.body)
             for s, (d, conf) in read.items():
                 self.news_bet[s] = (d, conf, item.batch + self.NEWS_BET_HOLD)
+                self.news_sym_until[s] = max(self.news_sym_until[s], item.batch + self.NEWS_DIR_PAUSE)
             if read:
                 self.log.warning("NEWS TRADE %s: %s", item.headline, {s: ("UP" if v[0] > 0 else "DOWN") for s, v in read.items()})
             move = float(self.param("news_move"))
@@ -576,9 +579,9 @@ class Alpha(Strategy):
         lo = sum(WEIGHT[s] * (sw[s] if WEIGHT[s] > 0 else lw[s]) for s in SYMS)
         return hi, lo
 
-    def room(self, s, side, lw, sw) -> int:
+    def room(self, s, side, lw, sw, cap=None) -> int:
         """Shares we may add on `side` of `s` within the soft cap, the hard limit and exposure."""
-        cap = min(self.CAP[s], self.symbol_info[s].position_limit)
+        cap = min(self.CAP[s] if cap is None else cap, self.symbol_info[s].position_limit)
         hi, lo = self.exposure_bounds(lw, sw)
         w = WEIGHT[s]
         if side == "BUY":
@@ -788,7 +791,8 @@ class Alpha(Strategy):
             x, top = self.ext.get(s), state.top[s]
             if x is None or top.halted or not top.two_sided or self.param(f"pause_{s}"):
                 continue
-            target = int(d * conf * self.CAP[s])
+            lim = self.symbol_info[s].position_limit
+            target = int(d * conf * self.NEWS_BET_FRAC * lim)
             need = target - self.position(s)
             if need * d <= 0:
                 continue
@@ -796,12 +800,12 @@ class Alpha(Strategy):
                 self.cancel_all(s)
             maxq = self.symbol_info[s].max_order_qty
             if d > 0:
-                q = min(need, maxq, self.room(s, "BUY", lw, sw))
+                q = min(need, maxq, self.room(s, "BUY", lw, sw, cap=int(self.NEWS_BET_FRAC * lim)))
                 if q > 0:
                     self.buy(s, q, x.ask + self.NEWS_SLIP[s], ioc=True)
                     lw[s] += q
             else:
-                q = min(-need, maxq, self.room(s, "SELL", lw, sw))
+                q = min(-need, maxq, self.room(s, "SELL", lw, sw, cap=int(self.NEWS_BET_FRAC * lim)))
                 if q > 0:
                     self.sell(s, q, x.bid - self.NEWS_SLIP[s], ioc=True)
                     sw[s] -= q
