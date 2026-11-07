@@ -283,12 +283,14 @@ class Alpha(Strategy):
             if take_on:
                 take_edge = TAKER_FEE + float(self.param("take_edge")) * mult
                 maxq = self.symbol_info[s].max_order_qty
-                if f - x.ask > take_edge:
+                # x is the book without our orders, so a take at x's price would first hit any of
+                # our own quotes at or through it (a self-trade, penalised): skip until it moves.
+                if f - x.ask > take_edge and not self.own_at_or_through(s, "SELL", x.ask):
                     q = min(int(self.CLIP[s] * scale), x.aq, self.room(s, "BUY", lw, sw), maxq)
                     if q > 0:
                         self.buy(s, q, x.ask, ioc=True)
                         lw[s] += q
-                elif x.bid - f > take_edge:
+                elif x.bid - f > take_edge and not self.own_at_or_through(s, "BUY", x.bid):
                     q = min(int(self.CLIP[s] * scale), x.bq, self.room(s, "SELL", lw, sw), maxq)
                     if q > 0:
                         self.sell(s, q, x.bid, ioc=True)
