@@ -9,7 +9,9 @@ fills. Estimated PnL in the GUI is **not** the score: don't react to it alone.
 - [ ] **Freeze the strategy and its parameter list.** The exchange fixes the model-parameter panel
   for a session the first time a program declares it. A program with a different list is refused
   (`BAD_REQUEST`, "the parameters cannot change during a session") and runs on its defaults, with
-  no GUI control. A mid-session hotfix may change code, **never `MODEL_PARAMS`**.
+  no GUI control. **Defaults count:** changing only one default (e.g. `arb_on` 1 → 0) is refused
+  too (seen on the sandbox). A mid-session hotfix may change code, **never `MODEL_PARAMS`, not even
+  a default**: change the value in the GUI instead.
 - [ ] **Agree who runs what.** Exactly one program trades: `strategies/alpha.py`, on algo key 1.
   All keys and logins share one account, one set of limits and one 20-message budget per batch. If
   a teammate tests something else at the same time, both programs trade worse, and the first one
