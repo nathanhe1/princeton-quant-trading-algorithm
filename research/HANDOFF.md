@@ -83,3 +83,9 @@ python final_compare.py       # before/after table: base, stress, synthetic news
 - **180 or 240-batch targets:** lower R² and lower markout.
 - **`make_edge` 2.0:** +$9 out of sample under stress, which is noise.
 - **`news_pause` 30:** mixed results across repricing speeds.
+- **Own-fill markout guard** (widen edge and shrink size when a symbol's own maker markout turns
+  negative; code in `strategies/archive/alpha_v6_guard_rejected.py`): −$15 base, −$23 realistic
+  stress, −$6 stress without adverse, worse worst sessions in the failure cases. Online calibration
+  already covers it. Revisit only if R1's report shows maker markout negative while the forecast
+  still calibrates.
+

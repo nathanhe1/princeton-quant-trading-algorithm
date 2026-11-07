@@ -47,7 +47,7 @@ SYMS = ("HPPO", "BNKY", "CRRT", "BRRY")
 WEIGHT = {"HPPO": 1.0, "BNKY": 0.15, "CRRT": -0.29, "BRRY": 0.425}
 EXPOSURE_CAP = 580.0  # the exchange's limit is 600; keep a margin
 TAKER_FEE = 0.4  # cents per share
-WARMUP = 30  # batches before trading
+WARMUP = 30  # batches this program must have seen before trading (also after a late start)
 HALT_COOLDOWN = 20  # batches to stay out of a symbol after its halt ends
 REPORT_EVERY = 120  # one status line a minute
 
@@ -144,6 +144,7 @@ class Alpha(Strategy):
         self.news_batch = None  # first news batch of a pending rebase
         self.news_ref: dict[str, float] = {}  # micro just before that news
         self.rebase_at = None
+        self.seen = 0  # batches seen by this program (a late start has no history yet)
         self.horizon = int(m.get("H", 120))
         self.adj_hist = {s: deque(maxlen=self.horizon + 1) for s in SYMS}  # (adj, micro) per batch
         self.cal = {s: [0.0, 0.0, 0.0] for s in SYMS}  # decayed sums: p*y, p*p, count
@@ -172,7 +173,7 @@ class Alpha(Strategy):
             self.rebase_at = max(self.rebase_at or 0, item.batch + max(pause, 1))
 
     def on_reconnect(self) -> None:
-        self.pause_until = 0  # resting orders are still there; carry on
+        pass  # resting orders are still there and a news pause stays in force: carry on
 
     def param(self, name):
         if self.params_override and name in self.params_override:
@@ -407,7 +408,8 @@ class Alpha(Strategy):
             if any(self.open_orders(s) for s in SYMS):
                 self.cancel_all()
             return
-        if not ready or state.batch < WARMUP or state.final or state.blocked:
+        self.seen += 1
+        if not ready or self.seen <= WARMUP or state.final or state.blocked:
             return
         self.compute_fair(state.batch)
         quoting = bool(self.param("make_on")) and state.batch >= self.pause_until

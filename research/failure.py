@@ -14,13 +14,14 @@ import pandas as pd
 from evalx import evaluate
 
 ST = "share=0.3+through=2+adverse"
-CASES = [("base", 1.0), (ST, 1.0), ("base", -0.5), (ST, -0.5), ("base", -1.0), (ST, -1.0),
+NA = "share=0.3+through=2"  # stress without the look-ahead adverse rule
+CASES = [("base", 1.0), (ST, 1.0), (NA, 1.0), ("base", -0.5), (ST, -0.5), ("base", -1.0), (ST, -1.0),
          ("base", 0.0), (ST, 0.0), ("base", 2.0), (ST, 2.0)]
 
 
 def row(path, scen, mult, attrs=None, over=None):
     s, f = evaluate(path, coefs="raw", scenario=scen, attrs={**(attrs or {}), "COEF_MULT": mult}, over=over)
-    out = dict(strategy=path.split("/")[-1], scenario="stress" if "adverse" in scen else scen, coef=mult,
+    out = dict(strategy=path.split("/")[-1], scenario="stress" if "adverse" in scen else ("stress-noadv" if scen == NA else scen), coef=mult,
                mean=s.mk120.mean(), worst=s.mk120.min())
     for liq in ("MAKER", "TAKER"):
         x = f[f.liq.str.contains(liq)]
