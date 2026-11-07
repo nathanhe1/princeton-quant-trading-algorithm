@@ -1,20 +1,21 @@
 # Roadmap: everything to fix, improve and add before R1 (2026-11-06)
 
-Written after the first sandbox run of `alpha.py` (session sandbox-0196, batches 1215–2120, about
-15 minutes, logs in `research/sandbox_runs/`, summary from `research/sandbox_report.py`). Work top
-to bottom. Each item says why, what to do, and how to accept it. Tick items off here and record the
-result in one line, so the next session knows where things stand.
+Written after the first sandbox run of `alpha.py` (session sandbox-0196, batches 1215–2416, 10
+minutes, log `research/sandbox_runs/20261107T025307Z.jsonl`, summary from
+`research/sandbox_report.py`). Work top to bottom. Each item says why, what to do, and how to
+accept it. Tick items off here and record the result in one line, so the next session knows where
+things stand.
 
 ## What the sandbox run showed
 
-| | sandbox (15 min) | backtest (per session, base rule) |
+| | sandbox (10 min) | backtest |
 |---|---|---|
-| markout, all fills, vs mid 60 s later | **−3.1¢/share, −$2,181** | +1.9¢ maker, +6.1¢ taker |
-| maker shares / markout | 53.7k / −1.6¢ | 286k / +1.93¢ |
-| taker shares / markout | **25.5k / −7.0¢** | **1.6k** / +6.1¢ |
-| forecast vs next 60 s move, correlation | **−0.35 to −0.73**, all four symbols | +0.2 to +0.55 (BNKY ≈ 0) |
-| typical 60 s move (sd) | HPPO 13¢, BNKY 14¢, CRRT 12¢, BRRY 7¢ | HPPO 7¢, BNKY 3¢, CRRT 1.6¢, BRRY 5.6¢ |
-| time with \|position\| ≥ 90% of soft cap | HPPO 31%, BNKY 41%, CRRT 11%, BRRY 2% | not measured yet |
+| markout, all fills, vs mid 60 s later | **−2.4¢/share, −$2,022** | +1.9¢ maker, +6.1¢ taker (24-session OOS) |
+| maker shares / markout | 63k / −0.8¢ | 286k per 45-min session / +1.93¢ |
+| taker shares / markout | **28.7k / −5.9¢** | **1.6k per 45-min session** / +6.1¢ |
+| forecast vs next 60 s move, correlation | **−0.32 to −0.64**, all four symbols | +0.23 to +0.55, BNKY ≈ 0 (s05) |
+| typical 60 s move (sd) | HPPO 12.5¢, BNKY 14¢, CRRT 12.6¢, BRRY 7¢ | HPPO 7¢, BNKY 3¢, CRRT 1.6¢, BRRY 5.6¢ (s05) |
+| time with \|position\| ≥ 90% of soft cap | HPPO 32%, BNKY 38%, CRRT 10%, BRRY 3% | not measured yet |
 | self-trades | 1 (10 shares, $1 penalty): **fixed** | 0 |
 
 **What carries over and what doesn't.** The sandbox's prices and participants are placeholders
