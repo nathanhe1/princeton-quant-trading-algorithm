@@ -6,3 +6,4 @@ data/
 pqt-runs/
 *.log
 .env
+research/sandbox_runs/
