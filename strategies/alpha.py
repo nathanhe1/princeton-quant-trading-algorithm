@@ -83,6 +83,13 @@ class Alpha(Strategy):
     FAIR_CAP = {"HPPO": 20.0, "BNKY": 6.5, "CRRT": 8.5, "BRRY": 20.0}
     # After a news pause, remove the news jump from the price history so it is not read as momentum.
     NEWS_REBASE = True
+    # Online calibration: per symbol, the decayed regression slope of the realized target
+    # (mid H batches later minus micro now) on the model's adjustment, shrunk toward 1 by a prior
+    # worth CALIB_PRIOR batches. The adjustment is scaled by that slope, clipped to [0, 1]: a model
+    # that stops working live (wrong sign, overconfident) fades toward quoting around the micro.
+    CALIB_ON = True
+    CALIB_HALFLIFE = 2400  # batches (20 min)
+    CALIB_PRIOR = 1200  # batches of prior weight at slope 1
     model = MODEL
     params_override: dict | None = None  # for research sweeps
 

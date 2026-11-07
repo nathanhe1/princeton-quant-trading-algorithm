@@ -5,6 +5,8 @@
     summ, fills = evaluate("../strategies/alpha.py", coefs="std", scenario="base", news=None)
 
 coefs: "raw" -> fold{k}.json (old fit), "std" -> fold{k}_std.json (scaled ridge, nested-CV penalty).
+attrs: class attributes to set on the strategy; the special key COEF_MULT multiplies every fitted
+coefficient (the model-failure scenario: -0.5 wrong sign, 0 no model, 2 overconfident).
 news:  None, or dict(D=<repricing batches>, n=<items per session>, mults=(2, 4), seed=...).
 
 Synthetic news (the data has none). Each item moves one stock's true value by J = +/- mult x its
@@ -138,6 +140,11 @@ def _one(job):
         if coef_file:  # None = use the strategy's own built-in model (may be in-sample!)
             with open(os.path.join(HERE, coef_file)) as f:
                 strat.model = json.load(f)
+        attrs = dict(attrs or {})
+        coef_mult = attrs.pop("COEF_MULT", None)  # model-failure scenario (failure.py)
+        if coef_mult is not None:
+            m = strat.model
+            strat.model = {**m, "coef": {s: {k: v * coef_mult for k, v in c.items()} for s, c in m["coef"].items()}}
         if over:
             strat.params_override = over
         for k, v in (attrs or {}).items():
