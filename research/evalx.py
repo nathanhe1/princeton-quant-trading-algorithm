@@ -226,7 +226,7 @@ def _one(job):
 
 
 def evaluate(path, coefs="std", scenario="base", news=None, over=None, attrs=None, sessions_spec=None):
-    suffix = "_std" if coefs == "std" else ""
+    suffix = {"std": "_std", "base33": "_base33"}.get(coefs, "")  # base33: the pre-v7 33-feature fits
     jobs = []
     for k, (coef_file, span) in enumerate(FOLDS, start=1):
         for name in pick(span):

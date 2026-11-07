@@ -185,6 +185,7 @@ class Probe(Alpha):
                   msgs_events=used_before, gap_ms=round((wall - self.last_wall) * 1000) if self.last_wall else None,
                   raw=raw, ext=ext, ours=ours, pos={s: self.position(s) for s in SYMS},
                   fair={s: round(v, 2) for s, v in self.fair.items()},
+                  tape=[[t.symbol, t.price, t.qty, str(getattr(t.aggressor, "value", t.aggressor))] for t in state.trades],
                   paused=state.batch < self.pause_until, blocked=state.blocked,
                   pnl=state.pnl_est_mills, kill=str(state.kill_switch) if hasattr(state, "kill_switch") else None)
         self.last_wall = wall
