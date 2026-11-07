@@ -111,6 +111,11 @@ class Alpha(Strategy):
         self.news_batch = None  # first news batch of a pending rebase
         self.news_ref: dict[str, float] = {}  # micro just before that news
         self.rebase_at = None
+        self.horizon = int(m.get("H", 120))
+        self.adj_hist = {s: deque(maxlen=self.horizon + 1) for s in SYMS}  # (adj, micro) per batch
+        self.cal = {s: [0.0, 0.0, 0.0] for s in SYMS}  # decayed sums: p*y, p*p, count
+        self.cal_decay = 0.5 ** (1.0 / self.CALIB_HALFLIFE)
+        self.k = {s: 1.0 for s in SYMS}
         floor = int(self.param("kill_floor"))
         if floor > 0:
             self.set_kill_switch(-floor * 1000)
