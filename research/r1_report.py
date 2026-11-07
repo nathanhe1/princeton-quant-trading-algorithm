@@ -25,12 +25,19 @@ HORIZONS = (2, 20, 60, 120, 240)  # batches: 1, 10, 30, 60, 120 s
 
 
 def load(path):
-    E = []
+    """Events of the first session in the file. A logger left running carries on into the next
+    session, whose batch numbers restart at 0: everything from that restart on is dropped."""
+    E, prev = [], -1
     for line in open(path, errors="replace"):
         try:
-            E.append(json.loads(line))
+            e = json.loads(line)
         except ValueError:
-            pass
+            continue
+        if e.get("ev") == "batch":
+            if e["batch"] < prev:
+                break
+            prev = e["batch"]
+        E.append(e)
     return E
 
 
