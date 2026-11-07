@@ -133,6 +133,12 @@ def run(job):
         def on_news(self, item):
             super().on_news(item)
 
+        if case == "killed":  # the exchange's kill switch engages at batch 2000
+            @property
+            def kill_switch(self):
+                from types import SimpleNamespace as NS
+                return NS(engaged=self.state is not None and self.state.batch >= 2000, realized_pnl_floor_mills=None)
+
     strat = Probe()
     original_send = v2bt._Feed.send
     if case == "news":
@@ -168,6 +174,10 @@ def run(job):
         takes = [x for x in sent if x[2] == "HPPO" and x[1] == "take" and 1700 + alpha.HALT_COOLDOWN <= x[0] < 1940]
         if len(takes) > 2:
             problems.append(f"{len(takes)} HPPO takes in the 2 min after a 30c halt gap (momentum misread)")
+    if case == "killed":
+        after = [x for x in sent if x[0] >= 2000]
+        if after:
+            problems.append(f"{len(after)} messages sent after the kill switch engaged, first {after[0]}")
     if case == "late":
         early = [x for x in sent if x[0] < LATE + alpha.WARMUP]
         if early:
@@ -187,7 +197,7 @@ def run(job):
 
 
 if __name__ == "__main__":
-    jobs = [(n, c) for c in ("none", "halts", "halt-jump", "one-sided", "dropout", "late", "news") for n in SESSIONS]
+    jobs = [(n, c) for c in ("none", "halts", "halt-jump", "one-sided", "dropout", "late", "news", "killed") for n in SESSIONS]
     with ProcessPoolExecutor() as ex:
         out = list(ex.map(run, jobs))
     bad = 0

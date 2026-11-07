@@ -645,7 +645,13 @@ class Alpha(Strategy):
         self.seen += 1
         if not self.kill_armed:
             self.arm_kill_switch(state)
-        if not ready or self.seen <= WARMUP or state.final or state.blocked:
+        if self.kill_switch.engaged or state.blocked:  # the exchange refuses everything: stop sending
+            if not getattr(self, "said_blocked", False):
+                self.said_blocked = True
+                self.log.warning("trading stopped: %s", "kill switch engaged" if self.kill_switch.engaged else "team blocked")
+            return
+        self.said_blocked = False
+        if not ready or self.seen <= WARMUP or state.final:
             return
         self.compute_fair(state.batch)
         if self.ETF_PROJECT:

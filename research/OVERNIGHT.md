@@ -68,7 +68,18 @@ v10 vs v9 under stress: +$491 ± 25 per session, better in 24/24 sessions on eac
 
 ## Live sandbox results tonight
 
-(filled in below as sessions finish)
+**Dress rehearsal of the final code** (sandbox-0204: R1 command, full session, defaults):
+- **Mechanics:** clean. No exceptions, at most 9 msgs/batch, 0.5 ms per batch, the news pause fired
+  on both items, and the new parameter defaults arrived at session start.
+- **The sandbox's hostile market:** v10 traded ~12,700 shares/min at −3.5¢/share (v9: ~3,500/min).
+  The narrower edge trades more, so it loses faster where the market picks us off.
+- **The kill switch fired at minute 10.6** (realized −$2,000) and blocked the team for the rest of
+  the session, as designed.
+- **Found and fixed:** after the switch engaged, the strategy kept sending orders (32,858
+  refused). It now stops and logs once; a replay forcing the switch on shows 20,290 → 0 messages,
+  added to `hardening.py`.
+
+**A/B campaign on a frozen v9** (5-minute alternating arms, pooled by `research/ab_report.py`):
 
 ## Your decisions
 
