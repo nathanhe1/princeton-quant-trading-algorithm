@@ -251,6 +251,9 @@ class Alpha(Strategy):
             cap = self.FAIR_CAP.get(s) if self.FAIR_CAP else None
             if cap is not None:
                 adj = max(-cap, min(cap, adj))
+            if self.CALIB_ON and batch is not None:
+                self.calibrate(s, batch, adj)
+                adj *= self.k[s]
             self.fair[s] = self.ext[s].micro + adj
 
     # ------------------------------------------------------------------ risk
