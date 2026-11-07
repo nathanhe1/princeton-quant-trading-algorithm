@@ -220,7 +220,20 @@ class Alpha(Strategy):
             self.f_hist[s] = deque(f[: len(f) - m] + [0] * m, maxlen=self.f_hist[s].maxlen)
         self.news_batch, self.news_ref, self.rebase_at = None, {}, None
 
-    def compute_fair(self) -> None:
+    def calibrate(self, s, batch, adj) -> None:
+        """Score the adjustment made H batches ago against what happened, then queue this one."""
+        h, c = self.adj_hist[s], self.cal[s]
+        while h and h[0][0] <= batch - self.horizon:
+            _, p, u0 = h.popleft()
+            y = self.ext[s].mid - u0
+            d = self.cal_decay
+            c[0], c[1], c[2] = c[0] * d + p * y, c[1] * d + p * p, c[2] * d + 1
+        h.append((batch, adj, self.ext[s].micro))
+        if c[2] > 0 and c[1] > 0:
+            prior = self.CALIB_PRIOR * c[1] / c[2]  # prior weight in units of the mean p*p
+            self.k[s] = max(0.0, min(1.0, (c[0] + prior) / (c[1] + prior)))
+
+    def compute_fair(self, batch=None) -> None:
         x = {}
         for s in SYMS:
             h = self.u_hist[s]
