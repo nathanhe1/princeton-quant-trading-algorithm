@@ -49,6 +49,11 @@ PROBE_BATCHES=0 pqt run research/sandbox_probe.py:Probe --mode live --cancel-on-
   itself. Every fill, the book every batch, every news item, halt and reject go to
   `research/sandbox_runs/<time>.jsonl`: R1's file is what we tune R2 on.
 - You can start early: it waits for the session.
+- **One machine per algo key.** If anyone else connects with the same key (a teammate's `pqt run`,
+  a test script), the exchange drops our connection ("SUPERSEDED: a newer connection with this key
+  replaced this one") and the logger exits without reconnecting. Our quotes are pulled but the
+  positions stay, unmanaged. Seen on the sandbox, 2026-11-07. During R1 nobody else runs anything
+  with key 1; if the log shows SUPERSEDED, find the other program first, then restart ours.
 - **Start a fresh process for each session.** Once a process sees a session end, the SDK refuses
   every later order client-side ("the session has ended"), so a logger left running from R1 sits
   idle through R2 while looking connected (positions stay 0, est PnL $0). Worse, when R2 opens, that
