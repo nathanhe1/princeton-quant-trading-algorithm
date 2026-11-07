@@ -20,7 +20,10 @@ if __name__ == "__main__":
     res = {}
     for name, attrs in CONFIGS.items():
         for scen, mult in CASES:
-            s, _ = evaluate("../strategies/alpha.py", coefs="raw", scenario=scen, attrs={**attrs, "COEF_MULT": mult})
+            attrs = dict(attrs)
+            over = attrs.pop("_over", None)  # GUI model parameters (make_edge, size_scale, ...)
+            s, _ = evaluate("../strategies/alpha.py", coefs="raw", scenario=scen, attrs={**attrs, "COEF_MULT": mult},
+                            over=over)
             res[(name, scen, mult)] = s.set_index("sess").mk120
             print(f"{name:16} {scen[:22]:22} x{mult}: {s.mk120.mean():6.0f} worst {s.mk120.min():6.0f}", flush=True)
     rows = []

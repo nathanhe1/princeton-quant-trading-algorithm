@@ -21,8 +21,11 @@ import time
 from collections import Counter, deque
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "strategies"))
-from alpha import SYMS, Alpha  # noqa: E402
+# PROBE_STRATEGY: a frozen strategy file to run instead of strategies/alpha.py (campaigns)
+_src = Path(os.environ.get("PROBE_STRATEGY") or Path(__file__).resolve().parent.parent / "strategies" / "alpha.py")
+sys.path.insert(0, str(_src.parent))
+_mod = __import__(_src.stem)
+SYMS, Alpha = _mod.SYMS, _mod.Alpha
 
 OUT_DIR = Path(__file__).resolve().parent / "sandbox_runs"
 STOP_AFTER = int(os.environ.get("PROBE_BATCHES", "1200"))  # 0 = never stop (competition logging)
@@ -54,7 +57,7 @@ class Probe(Alpha):
         self.last_wall = None
         self.pending = deque()  # our fills waiting 120 batches to be marked
         self.marked = deque()  # (fill batch, symbol, MAKER/TAKER, markout cents x shares, shares)
-        self.emit("start", coef_mult=os.environ.get("PROBE_COEF_MULT"), override=self.params_override,
+        self.emit("start", tag=os.environ.get("PROBE_TAG"), arms=os.environ.get("PROBE_ALTERNATE"), coef_mult=os.environ.get("PROBE_COEF_MULT"), override=self.params_override,
                   session=getattr(self.session, "session_id", str(self.session)),
                   params=dict(self.model_params), limits=str(self.limits),
                   symbol_info={s: str(i) for s, i in self.symbol_info.items()})
@@ -130,7 +133,10 @@ class Probe(Alpha):
             arm = (state.batch // self.block) % len(self.arms)
             if arm != self.arm:
                 self.arm = arm
-                self.params_override = {**(self.params_override or {}), **self.arms[arm]}
+                settings = dict(self.arms[arm])
+                for k, v in (settings.pop("_attrs", None) or {}).items():  # class attributes, e.g. MAX_IMPROVE
+                    setattr(self, k, v)
+                self.params_override = {**(self.params_override or {}), **settings}
                 self.emit("arm", batch=state.batch, arm=arm, settings=self.arms[arm])
                 self.log.info("A/B arm %d from batch %d: %s", arm, state.batch, self.arms[arm])
         self.markout_line(state)
