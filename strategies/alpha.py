@@ -388,5 +388,6 @@ class Alpha(Strategy):
     def report(self, state: BatchState) -> None:
         pos = " ".join(f"{s} {self.position(s):+d}" for s in SYMS)
         edge = " ".join(f"{s} {self.fair[s] - self.ext[s].micro:+.1f}" for s in SYMS if s in self.fair)
-        self.log.info("minute %d: %s | fair-micro %s | est PnL $%.2f", (state.batch + 1) // REPORT_EVERY,
-                      pos, edge, state.pnl_est_mills / 1000)
+        k = " ".join(f"{s} {self.k[s]:.2f}" for s in SYMS)
+        self.log.info("minute %d: %s | fair-micro %s | model weight %s | est PnL $%.2f",
+                      (state.batch + 1) // REPORT_EVERY, pos, edge, k, state.pnl_est_mills / 1000)
