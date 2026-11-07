@@ -130,3 +130,7 @@ python final_compare.py       # before/after table: base, stress, synthetic news
   .128→.141, BNKY .088→.090, CRRT .165→.166, BRRY .288→.291), but paired markout vs v10 is flat:
   base +22±49, stress +16±40, without adverse 0±33, 10% share +7±24, model ×−1 −7±13. Not worth
   the extra live code (per-fill big/small own-flow removal).
+- **Volatility guard at v10** (`VOL_GUARD`, off): historically free at 1.5×/2.0× (base −2/+9,
+  stress −3/+1), −52 base at 1.3×. On the sandbox recording at 1.5× it saves $54 under stress but
+  costs $110 under the base rule: the sandbox's pick-offs (~7¢/share) dwarf any sensible widening.
+  No benefit shown, so it stays off.

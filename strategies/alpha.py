@@ -668,9 +668,10 @@ class Alpha(Strategy):
             e = float(self.param("make_edge")) * mult * self.vol_factor(s) * g * (1.6 if self.thr_level >= 2 else 1.0)
             bid = min(math.floor(centre - e), x.ask - 1)  # never cross the (external) book
             ask = max(math.ceil(centre + e), x.bid + 1)
-            if self.MAX_IMPROVE is not None:
-                bid = min(bid, x.bid + self.MAX_IMPROVE)
-                ask = max(ask, x.ask - self.MAX_IMPROVE)
+            cap_ticks = self.MAX_IMPROVE.get(s) if isinstance(self.MAX_IMPROVE, dict) else self.MAX_IMPROVE
+            if cap_ticks is not None:
+                bid = min(bid, x.bid + cap_ticks)
+                ask = max(ask, x.ask - cap_ticks)
             if bid >= ask:
                 continue
             size = max(1, int(self.QUOTE[s] * scale / g * (self.size_k[s] if self.SIZE_LEARN else 1.0)))
