@@ -49,6 +49,10 @@ PROBE_BATCHES=0 pqt run research/sandbox_probe.py:Probe --mode live --cancel-on-
   itself. Every fill, the book every batch, every news item, halt and reject go to
   `research/sandbox_runs/<time>.jsonl`: R1's file is what we tune R2 on.
 - You can start early: it waits for the session.
+- **Start a fresh process for each session.** Once a process sees a session end, the SDK refuses
+  every later order client-side ("the session has ended"), so a logger left running from R1 sits
+  idle through R2 while looking connected (positions stay 0, est PnL $0). Stop it with Ctrl-C after
+  R1 and run the command again for R2.
 - `--cancel-on-disconnect` means our quotes are pulled if the laptop drops.
 - One member opens the trader GUI (`<COMPETITION_URL>/trade/`) and takes the **control token** for
   the model panel. Check the panel lists every parameter (`make_edge` … `pause_BRRY`, `calib_on`).

@@ -45,15 +45,20 @@ def session():
 def main():
     seen = set(json.loads(os.environ.get("CAMPAIGN_SKIP", "[]")))
     proc = None
-    i = 0
+    i = int(os.environ.get("CAMPAIGN_START", "0"))  # resume the plan after a crash
     while i < len(PLAN):
         name, state, batch = session()
         if name and name not in seen and state in ("ARMED", "RUNNING") and (state == "ARMED" or batch in ("None", "0") or int(batch) < 240):
             if proc and proc.poll() is None:
                 proc.send_signal(signal.SIGINT)
-                proc.wait(timeout=30)
+                try:
+                    proc.wait(timeout=30)
+                except subprocess.TimeoutExpired:  # the SDK sometimes ignores the interrupt after a session ends
+                    proc.kill()
+                    proc.wait()
             subprocess.run(["pkill", "-INT", "-f", "sandbox_probe.py:Probe"])  # strays from earlier runs
             time.sleep(3)
+            subprocess.run(["pkill", "-KILL", "-f", "sandbox_probe.py:Probe"])
             seen.add(name)
             tag, arms = PLAN[i]
             i += 1
@@ -67,8 +72,8 @@ def main():
                                      "--cancel-on-disconnect", "--server", ENV["PQT_SERVER"], "--key", ENV["PQT_API_KEY"]],
                                     cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
             print(time.strftime("%H:%M:%S"), "started", tag, "on", name, state, batch, flush=True)
-        elif name in seen and proc and proc.poll() is not None:
-            pass  # our logger ended with its session; wait for the next one
+        elif name in seen and proc and proc.poll() is None and state == "ENDED":
+            proc.send_signal(signal.SIGINT)  # one process trades one session (the SDK latches "ended")
         time.sleep(20)
     if proc:
         proc.wait()
