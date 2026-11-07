@@ -143,3 +143,12 @@ python final_compare.py       # before/after table: base, stress, synthetic news
 - **Calibration settings at v10** (`charts/data/nested_calib_v10.csv`): prior 600/2400, half-life
   1200/4800 are all within ±20 in healthy cases. Prior 600 is +118 with model ×−1, prior 2400 −320.
   Nested CV split between v10 and half-life 1200 (+6). Kept.
+- **Fewer features or a shrunk model, 2026-11-07** (`research/overfit37.py`, `overfit37_trade.py`,
+  `charts/data/overfit37_trade.log`). Paired vs the 37-feature model under stress: best 20 features
+  +4 ± 15, best 10 +1 ± 24, own-symbol only +4 ± 43, ridge 0.1 −24 ± 19, ridge 1 −166 ± 49 (the
+  harshest scenario agrees). The in-sample model is only +120 ± 25 better than out-of-sample, so the
+  37 features are not materially overfit. Kept 37.
+- **make_edge on the sandbox, 3 interleaved sessions** (`ab_report.py`): 1.5 better per share in all
+  3 (−0.79 vs −1.02 ¢), worse in $ per block (−367 vs −308, noise-sized) because the sandbox's
+  markout is negative and 1.5 trades ~40% more. Kept 1.5 on the historical evidence; the RUNBOOK
+  lever widens it live.
