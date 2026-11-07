@@ -90,6 +90,7 @@ class Alpha(Strategy):
     CALIB_ON = True
     CALIB_HALFLIFE = 2400  # batches (20 min)
     CALIB_PRIOR = 1200  # batches of prior weight at slope 1
+    CALIB_FULL = 1.0  # estimated slope at which the model gets full weight (k = slope / this)
     model = MODEL
     params_override: dict | None = None  # for research sweeps
 
@@ -233,7 +234,8 @@ class Alpha(Strategy):
         h.append((batch, adj, self.ext[s].micro))
         if c[2] > 0 and c[1] > 0:
             prior = self.CALIB_PRIOR * c[1] / c[2]  # prior weight in units of the mean p*p
-            self.k[s] = max(0.0, min(1.0, (c[0] + prior) / (c[1] + prior)))
+            slope = (c[0] + prior) / (c[1] + prior)
+            self.k[s] = max(0.0, min(1.0, slope / self.CALIB_FULL))
 
     def compute_fair(self, batch=None) -> None:
         x = {}

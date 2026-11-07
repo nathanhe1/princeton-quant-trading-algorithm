@@ -13,8 +13,9 @@ import pandas as pd
 
 from evalx import evaluate
 
-CASES = [("base", 1.0), ("share=0.3+through=2+adverse", 1.0),
-         ("base", -0.5), ("share=0.3+through=2+adverse", -0.5), ("base", 0.0), ("base", 2.0)]
+ST = "share=0.3+through=2+adverse"
+CASES = [("base", 1.0), (ST, 1.0), ("base", -0.5), (ST, -0.5), ("base", -1.0), (ST, -1.0),
+         ("base", 0.0), (ST, 0.0), ("base", 2.0), (ST, 2.0)]
 
 
 def row(path, scen, mult, attrs=None, over=None):
