@@ -22,6 +22,19 @@ Safety. Every order is checked against the worst-case position and the team's ne
 (|E| <= 600) before it is sent. Live, our own quotes are removed from the book before computing
 features (otherwise the model would chase its own quotes). Quotes are pulled for a few seconds
 after any news item and after a symbol comes back from a halt, when the model's fair is stale.
+
+v4 (ported from the PQT strategy; v3 is in strategies/archive/):
+* quotes also lean against net exposure (`expo_lean`), freeing exposure capacity;
+* ETF arbitrage: IOC all three legs when HPPO and BNKY + 2 BRRY cross by more than the cost
+  (`arb_on`, `arb_min`), and matched HPPO vs basket inventory is converted away (`recycle_on`);
+* live controls: `enabled` (kill), `pause_SYM` (stand aside on one symbol), `bias_SYM` (shift
+  fair value by a human view, in cents; with taking on, a big enough bias also takes). Reset
+  bias to 0 afterwards.
+
+v5 (v4 is in strategies/archive/): the model's adjustment is scaled per symbol by its live
+calibration (`calibrate()`, GUI switch `calib_on`), so a model that stops predicting fades toward
+quoting around the micro; the arbitrage never sizes off a guessed level (`Ext.guessed_*`) and counts
+BRRY's split orders against the message budget. research/ROADMAP.md has the numbers.
 """
 
 import json
@@ -46,12 +59,14 @@ MODEL = json.loads(COEF_JSON)
 
 
 class Ext:
-    """The top of book without our own orders."""
+    """The top of book without our own orders. `guessed_bid` / `guessed_ask`: that side is not
+    observed (we were alone at the best price, so the level behind us is a guess)."""
 
-    __slots__ = ("bid", "bq", "ask", "aq")
+    __slots__ = ("bid", "bq", "ask", "aq", "guessed_bid", "guessed_ask")
 
-    def __init__(self, bid, bq, ask, aq):
+    def __init__(self, bid, bq, ask, aq, guessed_bid=False, guessed_ask=False):
         self.bid, self.bq, self.ask, self.aq = bid, bq, ask, aq
+        self.guessed_bid, self.guessed_ask = guessed_bid, guessed_ask
 
     @property
     def micro(self):
@@ -71,7 +86,24 @@ class Alpha(Strategy):
         ParamSpec("take_on", ParamKind.BOOL, 1, 0, 1),
         ParamSpec("news_pause", ParamKind.INT, 10, 0, 240),  # batches without quotes after news
         ParamSpec("kill_floor", ParamKind.INT, 20000, 0, 1000000),  # $ realized loss; 0 = off
+        # v4, ported from the PQT strategy and checked by nested CV (ANALYSIS.md appendix D)
+        ParamSpec("enabled", ParamKind.BOOL, 1, 0, 1),  # 0: cancel everything and stop
+        ParamSpec("calib_on", ParamKind.BOOL, 1, 0, 1),  # scale the model by its live calibration
+        ParamSpec("expo_lean", ParamKind.FLOAT, 3.0, 0.0, 20.0),  # c of lean against net exposure at the cap
+        ParamSpec("arb_on", ParamKind.BOOL, 1, 0, 1),  # ETF vs basket arbitrage
+        ParamSpec("arb_min", ParamKind.FLOAT, 1.0, -2.0, 30.0),  # c/unit beyond 4 taker fees + 2c conversion
+        ParamSpec("recycle_on", ParamKind.BOOL, 1, 0, 1),  # convert matched HPPO vs basket inventory
+        ParamSpec("bias_HPPO", ParamKind.FLOAT, 0.0, -200.0, 200.0),  # human fair-value shift, cents
+        ParamSpec("bias_BNKY", ParamKind.FLOAT, 0.0, -200.0, 200.0),
+        ParamSpec("bias_CRRT", ParamKind.FLOAT, 0.0, -200.0, 200.0),
+        ParamSpec("bias_BRRY", ParamKind.FLOAT, 0.0, -200.0, 200.0),
+        ParamSpec("pause_HPPO", ParamKind.BOOL, 0, 0, 1),  # 1: no orders on this symbol
+        ParamSpec("pause_BNKY", ParamKind.BOOL, 0, 0, 1),
+        ParamSpec("pause_CRRT", ParamKind.BOOL, 0, 0, 1),
+        ParamSpec("pause_BRRY", ParamKind.BOOL, 0, 0, 1),
     )
+    CONV_BUSY = 0.6  # convert once some ETF leg uses this share of its soft cap
+    CONV_MIN = 40  # smallest conversion worth a message
     # per-symbol knobs (shares); the edges above are scaled per symbol by EDGE_MULT
     CAP = {"HPPO": 400, "BNKY": 1500, "CRRT": 1500, "BRRY": 400}
     CLIP = {"HPPO": 100, "BNKY": 300, "CRRT": 300, "BRRY": 60}
@@ -155,6 +187,7 @@ class Alpha(Strategy):
         if not top.two_sided:
             return None
         bid, bq, ask, aq = top.bid_px, top.bid_qty, top.ask_px, top.ask_qty
+        gb = ga = False
         if self.mode != "backtest":
             prev = self.ext.get(s)
             mb = sum(o.remaining for o in self.open_orders(s) if o.side == "BUY" and o.price == bid)
@@ -162,20 +195,20 @@ class Alpha(Strategy):
                 if bq > mb:
                     bq -= mb
                 elif prev is not None and prev.bid < bid:
-                    bid, bq = prev.bid, prev.bq
+                    bid, bq, gb = prev.bid, prev.bq, True
                 else:
-                    bid, bq = bid - 1, 100
+                    bid, bq, gb = bid - 1, 100, True
             ma = sum(o.remaining for o in self.open_orders(s) if o.side == "SELL" and o.price == ask)
             if ma:
                 if aq > ma:
                     aq -= ma
                 elif prev is not None and prev.ask > ask:
-                    ask, aq = prev.ask, prev.aq
+                    ask, aq, ga = prev.ask, prev.aq, True
                 else:
-                    ask, aq = ask + 1, 100
+                    ask, aq, ga = ask + 1, 100, True
             if bid >= ask:
                 return prev
-        return Ext(bid, bq, ask, aq)
+        return Ext(bid, bq, ask, aq, gb, ga)
 
     def update_features(self, state: BatchState) -> bool:
         flow = {s: 0 for s in SYMS}
@@ -256,9 +289,11 @@ class Alpha(Strategy):
             if cap is not None:
                 adj = max(-cap, min(cap, adj))
             if self.CALIB_ON and batch is not None:
-                self.calibrate(s, batch, adj)
-                adj *= self.k[s]
-            self.fair[s] = self.ext[s].micro + adj
+                self.calibrate(s, batch, adj)  # keeps learning while switched off in the GUI
+                if self.param("calib_on"):
+                    adj *= self.k[s]
+            # a human bias (GUI) is added after calibration: it is a view, not the model's error
+            self.fair[s] = self.ext[s].micro + adj + float(self.param(f"bias_{s}"))
 
     # ------------------------------------------------------------------ risk
     def worst_case(self):
@@ -289,20 +324,109 @@ class Alpha(Strategy):
             r = min(r, (lo + EXPOSURE_CAP) / w if w > 0 else (EXPOSURE_CAP - hi) / -w)
         return max(0, int(r))
 
+    # ------------------------------------------------------------------ ETF arbitrage (from PQT)
+    def trade_arb(self, state: BatchState, lw, sw) -> set:
+        """HPPO's true value is exactly BNKY + 2 BRRY, so when the books cross by more than the cost
+        (4 taker fees + the 2c conversion that later recycles the legs) take all three legs: a
+        completed set scores its edge whatever the true value does."""
+        legs = ("HPPO", "BNKY", "BRRY")
+        for s in legs:
+            t = state.top[s]
+            if (t.halted or not t.two_sided or state.batch < self.cool_until[s]
+                    or self.param(f"pause_{s}")):
+                return set()
+        h, b, r = (self.ext[s] for s in legs)
+        need = 4 * TAKER_FEE + 2.0 + float(self.param("arb_min"))
+        sell_etf = h.bid - (b.ask + 2 * r.ask)  # sell HPPO, buy the basket
+        buy_etf = (b.bid + 2 * r.bid) - h.ask  # buy HPPO, sell the basket
+        if sell_etf >= need:
+            d, q = -1, min(h.bq, b.aq, r.aq // 2)
+            guessed = h.guessed_bid or b.guessed_ask or r.guessed_ask
+        elif buy_etf >= need:
+            d, q = 1, min(h.aq, b.bq, r.bq // 2)
+            guessed = h.guessed_ask or b.guessed_bid or r.guessed_bid
+        else:
+            return set()
+        if guessed:  # a leg's price or size is our guess, not the book: IOCs could miss it
+            return set()
+        want = {"HPPO": d, "BNKY": -d, "BRRY": -d}  # +1 buy, -1 sell
+        mult = {"HPPO": 1, "BNKY": 1, "BRRY": 2}
+        for s in legs:
+            q = min(q, self.room(s, "BUY" if want[s] > 0 else "SELL", lw, sw) // mult[s])
+        q = min(q, self.symbol_info["HPPO"].max_order_qty, self.symbol_info["BNKY"].max_order_qty)
+        orders = sum(-(-q * mult[s] // self.symbol_info[s].max_order_qty) for s in legs)
+        if q < 5 or self.messages_left() < orders + sum(len(self.open_orders(s)) for s in legs):
+            return set()
+        for s in legs:  # never trade with ourselves: pull our quotes on the legs first
+            for o in self.open_orders(s):
+                self.cancel(order_id=o.order_id)
+                if o.side == "BUY":
+                    lw[s] -= o.remaining
+                else:
+                    sw[s] += o.remaining
+        for s in legs:
+            e = self.ext[s]
+            n = q * mult[s]
+            while n > 0:  # BRRY's leg may need two orders (max order 120)
+                k = min(n, self.symbol_info[s].max_order_qty)
+                if want[s] > 0:
+                    self.buy(s, k, e.ask, ioc=True)
+                    lw[s] += k
+                else:
+                    self.sell(s, k, e.bid, ioc=True)
+                    sw[s] -= k
+                n -= k
+        self.log.info("arb b%d %s %d units, gap %.1fc", state.batch, "sellETF" if d < 0 else "buyETF",
+                      q, sell_etf if d < 0 else buy_etf)
+        return set(legs)
+
+    def recycle(self, state: BatchState) -> None:
+        """Convert matched HPPO vs basket inventory (arbitrage leftovers, mostly) to free position
+        room. Exposure-neutral; costs 2c per HPPO share."""
+        if any(state.top[s].halted for s in ("HPPO", "BNKY", "BRRY")) or self.messages_left() < 2:
+            return
+        h, b, r = self.position("HPPO"), self.position("BNKY"), self.position("BRRY")
+        busy = max(abs(h) / self.CAP["HPPO"], abs(b) / self.CAP["BNKY"], abs(r) / self.CAP["BRRY"])
+        if busy < self.CONV_BUSY:
+            return
+        if h < 0 and b > 0 and r > 1:
+            q = min(-h, b, r // 2)
+            if q >= self.CONV_MIN:
+                self.create(q)
+        elif h > 0 and b < 0 and r < -1:
+            q = min(h, -b, -r // 2)
+            if q >= self.CONV_MIN:
+                self.redeem(q)
+
     # ------------------------------------------------------------------ trading
     def on_batch(self, state: BatchState) -> None:
         ready = self.update_features(state)
         if (state.batch + 1) % REPORT_EVERY == 0:
             self.report(state)
+        if not self.param("enabled"):
+            if any(self.open_orders(s) for s in SYMS):
+                self.cancel_all()
+            return
         if not ready or state.batch < WARMUP or state.final or state.blocked:
             return
         self.compute_fair(state.batch)
         quoting = bool(self.param("make_on")) and state.batch >= self.pause_until
         take_on = bool(self.param("take_on"))
         scale = float(self.param("size_scale"))
+        lean = float(self.param("expo_lean"))
         lw, sw = self.worst_case()
+        arb = self.trade_arb(state, lw, sw) if self.param("arb_on") else set()
+        if self.param("recycle_on") and not arb:
+            self.recycle(state)
+        E = sum(WEIGHT[s] * self.position(s) for s in SYMS)  # net exposure of positions
         for s in SYMS:
+            if s in arb:  # its quotes were just pulled for the arbitrage
+                continue
             top = state.top[s]
+            if self.param(f"pause_{s}"):
+                if self.open_orders(s):
+                    self.cancel_all(s)
+                continue
             if top.halted or not top.two_sided or state.batch < self.cool_until[s]:
                 if self.open_orders(s) and not top.halted:
                     self.cancel_all(s)
@@ -333,6 +457,9 @@ class Alpha(Strategy):
                     self.cancel_all(s)
                 continue
             centre = f - self.SKEW[s] * pos / self.CAP[s]
+            # lean against net exposure too (from PQT): the strategy is exposure-capped, so steering
+            # E back toward 0 frees capacity on both sides
+            centre -= lean * E / EXPOSURE_CAP * (1 if WEIGHT[s] > 0 else -1) * min(1.0, abs(WEIGHT[s]) * 2)
             e = float(self.param("make_edge")) * mult
             bid = min(math.floor(centre - e), x.ask - 1)  # never cross the (external) book
             ask = max(math.ceil(centre + e), x.bid + 1)

@@ -37,6 +37,35 @@ no missed batches or reconnects, `external()` correct on all 3,160 at-touch chec
 and rebase fired, and the probe exited with no orders left. Rejects: 78 UNKNOWN_ORDER (expected)
 and 7 EXPOSURE_LIMIT. No halts happened, so halt handling is still untested live.
 
+## Progress log
+
+- **2026-11-06, v5 = Rushil's v4 + online calibration.** Model-failure harness:
+  `research/failure.py` (`COEF_MULT` in `evalx.py`); nested choice of the calibration threshold:
+  `research/nested_calib.py` (every fold picked `CALIB_FULL` = 1.0). Tests: `tests/test_alpha_live.py`.
+  3-fold OOS $/session (stress = realistic, seed 2026; paired over seeds 2026/7/99 where marked):
+
+  | case | v3.1 (pre-v4) | v4 (Rushil) | **v5** |
+  |---|---|---|---|
+  | base, model right | 5,602 | 6,058 | **6,232** (vs v4 +174 ± 51, 20/24) |
+  | stress, model right | 1,540 | 1,514 | 1,451 (vs v4 **−67 ± 25**, all 3 seeds) |
+  | base / stress, model ×−1 | −304 / −1,543 | −371 / −1,626 | **3,482 / −72** |
+  | stress, model ×−0.5 | −767 | −664 | **116** |
+  | base / stress, model ×2 | 2,269 / 741 | 2,471 / 763 | **4,447 / 1,217** |
+  | base / stress, no model | 4,707 / 186 | 4,270 / 256 | 4,270 / 256 |
+
+  Decision: accept v5. It pays 4% under stress when the model is exactly right, and gains
+  $450–1,550/session under stress when the model is wrong or overconfident. `calib_on` turns
+  it off live.
+- **About v4's arbitrage:** ~14k IOC shares/session, about $0 under own-mid marking (+$13 with the
+  model, −$60 without). Rushil's +$123 stress figure marks HPPO against the basket mid
+  (ANALYSIS.md appendix D). That is defensible, because V(HPPO) = V(BNKY) + 2 V(BRRY) exactly, but
+  our harness does not do it yet. Open: decide on one marking rule for HPPO and use it everywhere.
+  v4 also loses $436/session vs v3.1 when the model is absent (expo lean + arb); understand why.
+- **Fixed in v5 (live-only, invisible to the backtest):**
+  - the arbitrage sized legs off `external()`'s guessed level (100 shares invented when we are alone
+    at the touch);
+  - its message check ignored BRRY's split orders.
+
 ## P0: robustness, before R1 (independent of the sandbox)
 
 Accept each P0 change under the existing rules: nested CV, stress `share=0.3+through=2+adverse` as
@@ -45,7 +74,8 @@ the primary case, and base not worse by more than 10%. Also add a **model-failur
 coefficients multiplied by −0.5, 0 (no model) and +2 (overconfident), and with prices rescaled to 2×
 volatility. Today the strategy has no defence in that scenario, and that is the sandbox's lesson.
 
-1. **Live skill monitor with auto-throttle** (largest item).
+1. **Live skill monitor with auto-throttle** (largest item). *Part done in v5: the forecast is
+   scaled by its live calibration. Still open: own-fill markout monitoring and the defensive state.*
    - **Measure, per symbol and online:**
      - the rolling markout of our own fills against the mid 10, 30 and 60 s later (we know these
        mids live);
@@ -74,7 +104,7 @@ volatility. Today the strategy has no defence in that scenario, and that is the 
      \|position\|, and stopping the side that adds to the position before the cap, not at it.
    - **Measure in the backtest:** time at ≥90% cap and markout split by inventory bucket.
    - **Why:** score isn't charged for holding, but a pinned position means one-sided quoting.
-5. **Self-trade guard: done** (`own_at_or_through` in `alpha.py`; archive `alpha_v3.py`). Base
+5. **Self-trade guard: done, unit test added** (`own_at_or_through` in `alpha.py`; archive `alpha_v3.py`). Base
    OOS $5,602 vs $5,600. Still to do: a unit test that builds a book with our own resting ask and
    checks no take is sent at or through it.
 6. **The `external()` fallback is untested by every backtest.** In backtest mode it returns the raw

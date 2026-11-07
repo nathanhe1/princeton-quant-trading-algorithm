@@ -426,3 +426,43 @@ From `research/`, with `../.venv/bin/python` (Python 3.12):
 Previous versions are kept in `strategies/archive/` (`alpha_v1.py`, `alpha_v2.py`). Detailed
 iteration notes are in `research/REPORT.md` and `research/NOTES.md`; the handoff note is in
 `research/HANDOFF.md`.
+
+## Appendix D: v4 (ports from the PQT strategy)
+
+`strategies/alpha.py` is now v4; v3 is `strategies/archive/alpha_v3.py`. v4 adds three things
+from a second strategy (PQT) and live controls:
+
+- **Exposure lean** (`expo_lean` 3¢): quotes also lean against net exposure, so the
+  exposure-capped strategy keeps capacity on both sides.
+- **ETF arbitrage** (`arb_on`, `arb_min` 1¢): IOC all three legs when HPPO and BNKY + 2 BRRY cross
+  by more than 4 taker fees + 2¢ conversion.
+- **Recycling** (`recycle_on`): matched HPPO vs basket inventory is converted away once a leg
+  passes 60% of its soft cap.
+- **Controls:** `enabled`, `pause_SYM`, `bias_SYM` (cents; reset to 0 after use).
+
+**Scoring note.** `scorecard.py` marks HPPO fills against HPPO's own mid, which ignores
+HPPO = BNKY + 2 BRRY and undercounts arbitrage. The figures below mark HPPO against the basket mid
+and charge conversion fees (about $45/session). `scorecards/alpha_v4.md` uses the standard
+own-mid rule and so shows v4 lower under stress than these figures.
+
+**Held-out comparison, v4 − v3**, paired by session (fold coefficients, $/session):
+
+| case | v3 | v4 | difference | v4 better in |
+|---|---|---|---|---|
+| base | $5,591 | $6,196 | +$605 ± 45 | 24/24 |
+| 30% + 2 ticks | $1,701 | $1,774 | +$74 ± 33 | 18/24 |
+| realistic (30% + 2 ticks + adverse) | $1,550 | $1,673 | +$123 ± 26 | 20/24 |
+| realistic, look-ahead removed | $1,023 | about $1,048 | +$25 ± 32 (noise) | 13/24 |
+| harshest | $791 | $861 | +$70 ± 25 | 15/24 |
+
+- **Selection.** The ports were chosen by nested CV: in each of the 3 folds, 11 variants were
+  ranked on the 16 training sessions and scored on the 8 held-out ones. Ranked by any stress case,
+  every fold picked this combination. The chronological fold (train s01–s16, test s17–s24) shows
+  the smallest gains: +$647 base, +$51 realistic.
+- **Look-ahead.** About $100 of the realistic gain is the exposure lean benefiting from the
+  adverse rule's look-ahead (section 7). With that removed, v4 ≈ v3 under realistic stress.
+- **Worst session.** The conservative worst session improves from $22 to about $154.
+- **Tried and rejected:**
+  - arbitrage without recycling, −$74 realistic: it fills the soft caps and crowds out quoting;
+  - PQT's self-widening edge, −$23 to −$48;
+  - an exposure lean of 5, which wins base but loses under the harshest stress.
