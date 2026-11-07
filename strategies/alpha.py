@@ -193,6 +193,10 @@ class Alpha(Strategy):
     # 10 minutes (vs the external mid 60 s later). Negative at two checks running: level +1, at most 2
     # (1: size x 0.5, no taking; 2: also edge x 1.6). Positive at three checks running: level -1.
     THROTTLE_FROM = 0
+    # Never quote more than MAX_IMPROVE ticks better than the external best price on our side
+    # (None = no limit; 0 = only join or sit behind). Stops a quote reaching across a narrow spread,
+    # where it is picked off first and can execute as a take when the book moves before our slot.
+    MAX_IMPROVE = None
     ONE_SIDE_WIDEN = 0.0
     model = MODEL
     params_override: dict | None = None  # for research sweeps
@@ -625,6 +629,9 @@ class Alpha(Strategy):
             e = float(self.param("make_edge")) * mult * self.vol_factor(s) * g * (1.6 if self.thr_level >= 2 else 1.0)
             bid = min(math.floor(centre - e), x.ask - 1)  # never cross the (external) book
             ask = max(math.ceil(centre + e), x.bid + 1)
+            if self.MAX_IMPROVE is not None:
+                bid = min(bid, x.bid + self.MAX_IMPROVE)
+                ask = max(ask, x.ask - self.MAX_IMPROVE)
             if bid >= ask:
                 continue
             size = max(1, int(self.QUOTE[s] * scale / g))

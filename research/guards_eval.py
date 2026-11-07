@@ -1,6 +1,6 @@
-"""Backtest cost and benefit of the out-of-range guards (VOL_GUARD, THROTTLE_FROM) on the historical
+"""Backtest cost and benefit of strategy switches (default: the out-of-range guards (VOL_GUARD, THROTTLE_FROM) on the historical
 sessions: base, realistic stress, stress without adverse, and a wrong-signed model under stress.
-Paired per session against the guards off.   ../.venv/bin/python guards_eval.py [data_dir]
+Paired per session against the guards off.   ../.venv/bin/python guards_eval.py ['<configs as JSON>']
 """
 import pandas as pd
 
@@ -13,6 +13,10 @@ CONFIGS = {"off": {}, "vol 1.5": {"VOL_GUARD": 1.5}, "vol 2.0": {"VOL_GUARD": 2.
 CASES = [("base", 1.0), (ST, 1.0), (NA, 1.0), (ST, -1.0)]
 
 if __name__ == "__main__":
+    import json
+    import sys
+    if len(sys.argv) > 1:  # configs as JSON: '{"off": {}, "join": {"MAX_IMPROVE": 0}}'
+        CONFIGS = json.loads(sys.argv[1])
     res = {}
     for name, attrs in CONFIGS.items():
         for scen, mult in CASES:
