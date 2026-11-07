@@ -89,3 +89,7 @@ python final_compare.py       # before/after table: base, stress, synthetic news
   already covers it. Revisit only if R1's report shows maker markout negative while the forecast
   still calibrates.
 
+- **One-sided quoting** (prompt 3; `ONE_SIDE_K`/`ONE_SIDE_WIDEN` in `alpha.py`, left at 0 = off;
+  `research/nested_oneside.py`): widening or pulling the side the forecast says gets picked off
+  raises maker ¢/share by up to 0.13¢, but loses more volume than that. Every outer fold picked off;
+  the best setting (K=3, pull) is −$68 base and −$15 realistic stress.

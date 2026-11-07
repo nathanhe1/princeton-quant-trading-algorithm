@@ -156,7 +156,7 @@ volatility. Today the strategy has no defence in that scenario, and that is the 
 9. **News trading** (PROMPTS.md prompt 5). The largest untapped credited markout. Hooks: `on_news`,
    `rebase()`, `FAIR_CAP` bypass. GUI kill switch for it. Test with `evalx` synthetic news plus
    unit tests on made-up headlines. Sandbox news is placeholder: "news here moves nothing".
-10. **Adverse-selection defence** (prompt 3). Quote only the side the forecast favours when
+10. **Adverse-selection defence** (prompt 3). *Rejected for one-sided quoting (nested CV, every fold picked off; HANDOFF.md).* Quote only the side the forecast favours when
     \|fair − micro\| is large; widen the other side. Accept on maker ¢/share under stress.
 11. **Join, don't improve.** We were alone at the best price 57% of the time, so we are
     setting new prices, and those get picked off first. Try joining the existing level unless the
