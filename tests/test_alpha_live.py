@@ -108,7 +108,11 @@ def test_read_news():
     assert read_news("CRRT shares jump but outlook weak") == {}  # both directions
     assert read_news("BNKY and BRRY to merge") == {}  # two stocks
     assert read_news("HPPO rebalances") == {}  # the ETF alone
-    assert read_news("Sandbox: routine notice", "news here moves nothing") == {}
+    # real items seen on the sandbox (2026-11-07)
+    assert read_news("Sandbox: routine notice", "This is the sandbox. Its other participants and its "
+                     "prices are placeholders; news here moves nothing.") == {}
+    assert read_news("Sandbox: another routine notice",
+                     "Nothing learned on the sandbox transfers to the competition's market.") == {}
 
 
 if __name__ == "__main__":
