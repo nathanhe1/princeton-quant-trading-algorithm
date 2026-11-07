@@ -23,7 +23,7 @@ things stand.
 about our model in the real market. What does carry over is how the strategy **behaves when its model
 is wrong**:
 
-1. **It never noticed.** It kept quoting and taking at full size for 15 minutes at −3¢/share.
+1. **It never noticed.** It kept quoting and taking at full size for 10 minutes at −2.4¢/share.
    Each competition session draws fresh market parameters, so some sessions will be off our
    historical fit. Nothing in the code detects that.
 2. **Taking scales with the size of the error.** A wrong, large `fair − micro` produces more takes:
