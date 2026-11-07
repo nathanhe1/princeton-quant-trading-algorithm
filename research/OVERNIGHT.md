@@ -84,8 +84,8 @@ markout per share vs the mid 60 s later; one sandbox session per question so far
 
 | question | arm | ¢/share | shares | $ | agrees with backtest? |
 |---|---|---|---|---|---|
-| quote cap (0205) | cap 2 ticks (v10) | **+2.46** | 135k | +3,323 | yes |
-| | no cap | −0.40 | 102k | −404 | |
+| quote cap (0205 + 0208, arms in both orders) | cap 2 ticks (v10) | **+1.41** (+2.46, +0.46) | 286k | +4,026 | yes, in both sessions |
+| | no cap | −0.25 (−0.40, −0.18) | 303k | −760 | |
 | make_edge (0203) | 1.5 (v10) | **−1.16** | 208k | −2,420 | yes (better per share, more volume) |
 | | 2.5 | −1.66 | 150k | −2,489 | |
 | size_scale (0202) | 1.5 (v10) | **−1.10** | 106k | −1,162 | yes |
