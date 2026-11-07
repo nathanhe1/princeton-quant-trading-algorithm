@@ -79,7 +79,29 @@ v10 vs v9 under stress: +$491 ± 25 per session, better in 24/24 sessions on eac
   refused). It now stops and logs once; a replay forcing the switch on shows 20,290 → 0 messages,
   added to `hardening.py`.
 
-**A/B campaign on a frozen v9** (5-minute alternating arms, pooled by `research/ab_report.py`):
+**A/B campaign on a frozen v9** (5-minute alternating arms, pooled by `research/ab_report.py`;
+markout per share vs the mid 60 s later; one sandbox session per question so far):
+
+| question | arm | ¢/share | shares | $ | agrees with backtest? |
+|---|---|---|---|---|---|
+| quote cap (0205) | cap 2 ticks (v10) | **+2.46** | 135k | +3,323 | yes |
+| | no cap | −0.40 | 102k | −404 | |
+| make_edge (0203) | 1.5 (v10) | **−1.16** | 208k | −2,420 | yes (better per share, more volume) |
+| | 2.5 | −1.66 | 150k | −2,489 | |
+| size_scale (0202) | 1.5 (v10) | **−1.10** | 106k | −1,162 | yes |
+| | 0.5 | −2.29 | 71k | −1,613 | |
+
+- **The sandbox is a hostile, out-of-range market** and each row is one session (4-5 blocks per
+  arm, block-to-block noise of several hundred $), so these are weak evidence. They are useful
+  because every direction matches the backtest: the cap helps, a narrower edge loses less per share,
+  and larger size does not hurt per share. Nothing was tuned on them.
+- **A false alarm, caught:** the first pooled report said "no cap +9.2¢/share". The logger had run on
+  into the next session, where batch numbers restart at 0, and the report mixed the two sessions'
+  prices. `ab_report.py` now splits sessions at the restart; the corrected numbers are above.
+- **Found: one process trades one session.** After a session ends the SDK refuses all later orders
+  client-side, so a logger left running sits idle in the next session while looking connected. The
+  RUNBOOK now says to start a fresh process for R2; the campaign driver stops each logger when its
+  session ends.
 
 ## Your decisions
 
