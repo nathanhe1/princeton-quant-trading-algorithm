@@ -101,7 +101,7 @@ volatility. Today the strategy has no defence in that scenario, and that is the 
    unit tests on made-up headlines. Sandbox news is placeholder: "news here moves nothing".
 10. **Adverse-selection defence** (prompt 3). Quote only the side the forecast favours when
     \|fair − micro\| is large; widen the other side. Accept on maker ¢/share under stress.
-11. **Join, don't improve.** We were alone at the best price about half the time, so we are
+11. **Join, don't improve.** We were alone at the best price 57% of the time, so we are
     setting new prices, and those get picked off first. Try joining the existing level unless the
     edge is large. With 60–70 teams in the market, queue position and fill share are much worse
     than in the backtest.
