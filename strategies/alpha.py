@@ -173,7 +173,7 @@ class Alpha(Strategy):
     CONV_BUSY = 0.6  # convert once some ETF leg uses this share of its soft cap
     CONV_MIN = 40  # smallest conversion worth a message
     # per-symbol knobs (shares); the edges above are scaled per symbol by EDGE_MULT
-    CAP = {"HPPO": 400, "BNKY": 1500, "CRRT": 1500, "BRRY": 400}
+    CAP = {"HPPO": 800, "BNKY": 2200, "CRRT": 2000, "BRRY": 550}  # R2 all-out (was 400/1500/1500/400)
     CLIP = {"HPPO": 100, "BNKY": 300, "CRRT": 300, "BRRY": 60}
     QUOTE = {"HPPO": 50, "BNKY": 150, "CRRT": 150, "BRRY": 30}
     EDGE_MULT = {"HPPO": 1.0, "BNKY": 0.5, "CRRT": 0.6, "BRRY": 1.0}
