@@ -292,7 +292,7 @@ class Alpha(Strategy):
             self.report(state)
         if not ready or state.batch < WARMUP or state.final or state.blocked:
             return
-        self.compute_fair()
+        self.compute_fair(state.batch)
         quoting = bool(self.param("make_on")) and state.batch >= self.pause_until
         take_on = bool(self.param("take_on"))
         scale = float(self.param("size_scale"))
