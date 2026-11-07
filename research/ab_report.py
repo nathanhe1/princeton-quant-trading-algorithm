@@ -18,7 +18,12 @@ def runs(paths):
 
 
 def blocks(path, arms, block=600):
-    E = [json.loads(line) for line in open(path)]
+    E = []
+    for line in open(path, errors="replace"):
+        try:
+            E.append(json.loads(line))
+        except ValueError:  # a line damaged while the file was being written
+            pass
     B = [e for e in E if e["ev"] == "batch"]
     mid = {}
     for b in B:
