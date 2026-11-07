@@ -31,6 +31,11 @@ v4 (ported from the PQT strategy; v3 is in strategies/archive/):
   fair value by a human view, in cents; with taking on, a big enough bias also takes). Reset
   bias to 0 afterwards.
 
+v9: a quote never sits more than MAX_IMPROVE (2) ticks better than the external best price on its
+side. Before, a strong forecast or skew could pull a bid up to the ask minus one tick, where its fills
+were poor value. Held out: base $6,382 -> $8,335, realistic stress $1,661 -> $2,707, wrong-signed
+model $69 -> $1,208 per session. v8c (the same code without the limit) is in the archive.
+
 v8: the ETF arbitrage defaults to off (arb_on 0). On the sandbox most arbitrages filled only some
 legs, and even the backtest, which has no leg risk, scores it below zero. v7 is in the archive.
 
@@ -196,7 +201,7 @@ class Alpha(Strategy):
     # Never quote more than MAX_IMPROVE ticks better than the external best price on our side
     # (None = no limit; 0 = only join or sit behind). Stops a quote reaching across a narrow spread,
     # where it is picked off first and can execute as a take when the book moves before our slot.
-    MAX_IMPROVE = None
+    MAX_IMPROVE = 2  # nested CV: every fold picked 2 over 3-6 and no limit (research/nested_improve.py)
     ONE_SIDE_WIDEN = 0.0
     model = MODEL
     params_override: dict | None = None  # for research sweeps

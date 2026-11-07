@@ -38,6 +38,11 @@ class Probe(Alpha):
             self.model = {**m, "coef": {s: {k: v * float(mult) for k, v in c.items()} for s, c in m["coef"].items()}}
         if os.environ.get("PROBE_OVERRIDE"):
             self.params_override = json.loads(os.environ["PROBE_OVERRIDE"])
+        # interleaved A/B: PROBE_ALTERNATE='[{"size_scale": 1.5}, {"size_scale": 0.5}]' switches
+        # between the settings every PROBE_BLOCK batches (default 600 = 5 min), logged as "arm"
+        self.arms = json.loads(os.environ.get("PROBE_ALTERNATE", "null"))
+        self.block = int(os.environ.get("PROBE_BLOCK", "600"))
+        self.arm = None
         super().on_start()
         OUT_DIR.mkdir(exist_ok=True)
         self.path = OUT_DIR / time.strftime("%Y%m%dT%H%M%SZ.jsonl", time.gmtime())
@@ -121,6 +126,13 @@ class Probe(Alpha):
         self.log.info("markout, last 10 min of fills vs mid 60 s later: $%+.0f | %s", total, " ".join(parts) or "-")
 
     def on_batch(self, state) -> None:
+        if self.arms:
+            arm = (state.batch // self.block) % len(self.arms)
+            if arm != self.arm:
+                self.arm = arm
+                self.params_override = {**(self.params_override or {}), **self.arms[arm]}
+                self.emit("arm", batch=state.batch, arm=arm, settings=self.arms[arm])
+                self.log.info("A/B arm %d from batch %d: %s", arm, state.batch, self.arms[arm])
         self.markout_line(state)
         wall = time.time()
         if self.first is None:

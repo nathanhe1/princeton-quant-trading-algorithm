@@ -140,6 +140,27 @@ and 7 EXPOSURE_LIMIT. No halts happened, so halt handling is still untested live
   - **The RUNBOOK trigger** (negative 10-min markout two minutes running from minute 12 → halve
     size) fires in 0% / 4% of healthy sessions (base / stress) and 92% of wrong-model ones.
 
+- **2026-11-07, v9 = v8 + quote cap `MAX_IMPROVE` = 2.** A quote never sits more than 2 ticks better
+  than the external best price on its side.
+  - **Nested CV** (`research/nested_improve.py`): every fold picked 2 over 3, 4, 5, 6 and no
+    limit. 1 tick lost under stress (screen).
+  - **Held out, v8 → v9, $/session (worst):**
+
+    | case | v8 | v9 |
+    |---|---|---|
+    | base | 6,382 (3,912) | 8,335 (4,732) |
+    | realistic stress | 1,661 (471) | 2,707 (933) |
+    | stress without adverse | 1,765 (688) | 2,678 (1,083) |
+    | 10% share, no through rule | 1,411 (693) | 1,928 (899) |
+    | wrong-sign model, stress | 69 (−567) | 1,208 (254) |
+
+  - **Why:** maker ¢/share rises on every symbol (2.23¢ overall vs 1.87¢). It is not the through
+    rule's artefact: the gain holds with no through rule.
+  - **Sandbox lessons (v8):** full size −5.3¢/share; ⅓ size, no takes −0.6¢/share. Even with
+    takes off, stale quotes executed as takes at −4…−7¢; the cap should cut these.
+  - **Guards built, kept off:** `VOL_GUARD` (no cost in-distribution) and `THROTTLE_FROM` (hurts a
+    wrong model: reacts too late). `research/recorder.py` records a clean live session as backtest data.
+
 ## P0: robustness, before R1 (independent of the sandbox)
 
 Accept each P0 change under the existing rules: nested CV, stress `share=0.3+through=2+adverse` as
