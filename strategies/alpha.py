@@ -79,11 +79,19 @@ SIGMA60 = {"HPPO": 12.6, "BNKY": 4.9, "CRRT": 4.9, "BRRY": 8.2}
 TICKERS = re.compile(r"\b(HPPO|BNKY|BRRY|CRRT)\b")
 NEWS_UP = ("beat", "beats", "record", "surge", "surges", "soar", "soars", "jump", "jumps", "upgrade",
            "upgraded", "raises", "raised", "approval", "approved", "wins", "won", "strong", "growth",
-           "profit", "rally", "rallies", "outperform", "exceeds", "boost", "boosts", "gain", "gains")
+           "profit", "rally", "rallies", "outperform", "exceeds", "boost", "boosts", "gain", "gains",
+           "buyback", "breakthrough", "awarded", "tops", "exceeded", "surpasses", "upgrades", "soared",
+           "surged", "jumped", "beat")
 NEWS_DOWN = ("miss", "misses", "missed", "recall", "recalls", "lawsuit", "sued", "downgrade",
              "downgraded", "cuts", "cut", "loss", "losses", "fraud", "investigation", "probe",
              "resigns", "delay", "delayed", "warning", "warns", "plunge", "plunges", "fall", "falls",
-             "drop", "drops", "fine", "fined", "bankruptcy", "default", "weak", "slump", "halt")
+             "drop", "drops", "fine", "fined", "bankruptcy", "default", "weak", "slump", "halt",
+             # R1 lesson (CRRT, 14:40: "CEO was caught diverting company funds ... restate two quarters")
+             "caught", "diverting", "diverted", "divert", "embezzlement", "embezzled", "misconduct",
+             "scandal", "restate", "restates", "restatement", "accused", "indicted", "arrested",
+             "charged", "subpoena", "ousted", "fired", "resign", "resigned", "breach", "hacked",
+             "outage", "shortfall", "writedown", "impairment", "insolvency", "suspended", "suspends",
+             "layoffs", "lowers", "lowered", "slashes", "plummets", "tumbles", "misled", "falsified")
 NEGATIONS = ("no", "not", "denies", "denied", "without", "despite")
 WORD = re.compile(r"[a-z]+")
 
@@ -175,6 +183,15 @@ class Alpha(Strategy):
     FAIR_CAP = {"HPPO": 20.0, "BNKY": 6.5, "CRRT": 8.5, "BRRY": 20.0}
     # After a news pause, remove the news jump from the price history so it is not read as momentum.
     NEWS_REBASE = True
+    # v11 (after R1): news on a symbol stops its quoting for NEWS_SYM_PAUSE batches, whatever the read
+    # (R1: CRRT repriced 230c over ~90 s after a fraud headline while we kept quoting it). With
+    # news_trade on and a confident read, the strategy also trades the news: it moves the position to
+    # direction x conf x CAP with IOC orders up to NEWS_SLIP ticks through the touch (closing a
+    # position on the wrong side first), for NEWS_BET_HOLD batches. Scoring credits fills after the
+    # headline with the jump, and prices took over a minute to catch up in R1.
+    NEWS_SYM_PAUSE = 120
+    NEWS_BET_HOLD = 120
+    NEWS_SLIP = {"HPPO": 10, "BNKY": 5, "CRRT": 5, "BRRY": 10}
     # Online calibration: per symbol, the decayed regression slope of the realized target
     # (mid H batches later minus micro now) on the model's adjustment, shrunk toward 1 by a prior
     # worth CALIB_PRIOR batches. The adjustment is scaled by that slope, clipped to [0, 1]: a model
@@ -236,6 +253,8 @@ class Alpha(Strategy):
         self.news_ref: dict[str, float] = {}  # micro just before that news
         self.rebase_at = None
         self.news_target = {}  # symbol -> (target price, direction, last batch) from a news read
+        self.news_sym_until = {s: 0 for s in SYMS}  # no quoting on a symbol named in news until then
+        self.news_bet = {}  # symbol -> (direction, confidence, last batch)
         self.mid10 = {s: deque(maxlen=11) for s in SYMS}
         self.var10 = {s: None for s in SYMS}
         self.n10 = {s: 0 for s in SYMS}
@@ -259,8 +278,19 @@ class Alpha(Strategy):
             self.own_taker[fill.symbol] += fill.qty if fill.side == "BUY" else -fill.qty
 
     def on_news(self, item) -> None:
+        named = set(TICKERS.findall(f"{item.headline} {item.body}"))
+        if named & {"BNKY", "BRRY"}:
+            named.add("HPPO")  # the ETF moves with its legs
+        for s in named:
+            self.news_sym_until[s] = max(self.news_sym_until[s], item.batch + self.NEWS_SYM_PAUSE)
+        if named:
+            self.log.info("news names %s: no quotes on them for %d batches", sorted(named), self.NEWS_SYM_PAUSE)
         if self.param("news_trade"):
             read = read_news(item.headline, item.body)
+            for s, (d, conf) in read.items():
+                self.news_bet[s] = (d, conf, item.batch + self.NEWS_BET_HOLD)
+            if read:
+                self.log.warning("NEWS TRADE %s: %s", item.headline, {s: ("UP" if v[0] > 0 else "DOWN") for s, v in read.items()})
             move = float(self.param("news_move"))
             for s, (d, conf) in read.items():
                 if s not in self.ext:
@@ -666,11 +696,16 @@ class Alpha(Strategy):
         if self.param("recycle_on") and not arb:
             self.recycle(state)
         E = sum(WEIGHT[s] * self.position(s) for s in SYMS)  # net exposure of positions
+        self.trade_news(state, lw, sw)
         for s in SYMS:
             if s in arb:  # its quotes were just pulled for the arbitrage
                 continue
             top = state.top[s]
             if self.param(f"pause_{s}"):
+                if self.open_orders(s):
+                    self.cancel_all(s)
+                continue
+            if state.batch < self.news_sym_until[s]:  # named in recent news: stand aside
                 if self.open_orders(s):
                     self.cancel_all(s)
                 continue
@@ -740,6 +775,36 @@ class Alpha(Strategy):
             else:
                 self.keep_quote(s, Side.BUY, bid, bsize, lw, sw)
                 self.keep_quote(s, Side.SELL, ask, asize, lw, sw)
+
+    def trade_news(self, state: BatchState, lw, sw) -> None:
+        """Move each symbol with a live news bet toward direction x conf x CAP: one IOC a batch, up to
+        NEWS_SLIP ticks through the external touch. A position on the wrong side is closed first (the
+        same order keeps going past zero). Our own quotes on it are cancelled first (no self-trade)."""
+        for s in list(self.news_bet):
+            d, conf, until = self.news_bet[s]
+            if state.batch > until:
+                del self.news_bet[s]
+                continue
+            x, top = self.ext.get(s), state.top[s]
+            if x is None or top.halted or not top.two_sided or self.param(f"pause_{s}"):
+                continue
+            target = int(d * conf * self.CAP[s])
+            need = target - self.position(s)
+            if need * d <= 0:
+                continue
+            if self.open_orders(s):
+                self.cancel_all(s)
+            maxq = self.symbol_info[s].max_order_qty
+            if d > 0:
+                q = min(need, maxq, self.room(s, "BUY", lw, sw))
+                if q > 0:
+                    self.buy(s, q, x.ask + self.NEWS_SLIP[s], ioc=True)
+                    lw[s] += q
+            else:
+                q = min(-need, maxq, self.room(s, "SELL", lw, sw))
+                if q > 0:
+                    self.sell(s, q, x.bid - self.NEWS_SLIP[s], ioc=True)
+                    sw[s] -= q
 
     def own_at_or_through(self, s, side, price) -> bool:
         """Do we rest an order on `side` that a take at `price` would trade against?"""
