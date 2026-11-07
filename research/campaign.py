@@ -22,16 +22,16 @@ for line in open(ROOT / ".env"):
 PQT = str(ROOT / ".venv/bin/pqt")
 CAP_OFF = {"_attrs": {"MAX_IMPROVE": None}}
 CAP_ON = {"_attrs": {"MAX_IMPROVE": 2}}
-PLAN = [  # one entry per session: the two arms
+PLAN = [  # one entry per session: the two arms (frozen v9: make_edge 2.5, cap 2, size 1.5, takes on)
+    ("edge", [{"make_edge": 2.5}, {"make_edge": 1.5}]),
     ("cap", [CAP_ON, CAP_OFF]),
     ("size", [{"size_scale": 1.5}, {"size_scale": 0.5}]),
+    ("edge", [{"make_edge": 1.5}, {"make_edge": 2.5}]),
     ("takes", [{"take_on": True}, {"take_on": False}]),
     ("cap", [CAP_OFF, CAP_ON]),
+    ("edge", [{"make_edge": 2.5}, {"make_edge": 1.5}]),
     ("size", [{"size_scale": 0.5}, {"size_scale": 1.5}]),
-    ("takes", [{"take_on": False}, {"take_on": True}]),
-    ("cap", [CAP_ON, CAP_OFF]),
-    ("size", [{"size_scale": 1.5}, {"size_scale": 0.5}]),
-    ("takes", [{"take_on": True}, {"take_on": False}]),
+    ("edge", [{"make_edge": 1.5}, {"make_edge": 2.5}]),
 ]
 
 

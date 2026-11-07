@@ -31,6 +31,10 @@ v4 (ported from the PQT strategy; v3 is in strategies/archive/):
   fair value by a human view, in cents; with taking on, a big enough bias also takes). Reset
   bias to 0 afterwards.
 
+v10: make_edge 2.5 -> 1.5. With the quote cap, narrower edges add volume without the far-inside
+fills (nested CV picked 0.5; 1.5 keeps ~60% of the gain and loses less on the sandbox recording, a
+market outside the historical range). Held out: realistic stress $2,707 -> $3,202 per session.
+
 v9: a quote never sits more than MAX_IMPROVE (2) ticks better than the external best price on its
 side. Before, a strong forecast or skew could pull a bid up to the ask minus one tick, where its fills
 were poor value. Held out: base $6,382 -> $8,335, realistic stress $1,661 -> $2,707, wrong-signed
@@ -132,7 +136,7 @@ class Ext:
 
 class Alpha(Strategy):
     MODEL_PARAMS = (
-        ParamSpec("make_edge", ParamKind.FLOAT, 2.5, 0.0, 50.0),  # cents from fair to quote
+        ParamSpec("make_edge", ParamKind.FLOAT, 1.5, 0.0, 50.0),  # cents from fair to quote (v10: was 2.5)
         ParamSpec("take_edge", ParamKind.FLOAT, 6.0, 0.0, 50.0),  # cents beyond the fee to take
         ParamSpec("size_scale", ParamKind.FLOAT, 1.5, 0.0, 3.0),  # scales clip and quote sizes
         ParamSpec("make_on", ParamKind.BOOL, 1, 0, 1),

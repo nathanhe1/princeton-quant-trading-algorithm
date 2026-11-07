@@ -16,9 +16,10 @@ if __name__ == "__main__":
     names = json.load(open(os.path.join(D, "manifest.json")))["sessions"]
     for path in sys.argv[1:]:
         for scen in ("base", "share=0.3+through=2+adverse"):
-            for size in (1.5, 0.5):
+            for over in json.loads(os.environ.get("CHECK_OVERS", '[{"size_scale": 1.5}, {"size_scale": 0.5}]')):
                 for n in names:
-                    s, f = evalx._one((os.path.abspath(path), None, n, scen, {"size_scale": size}, None, None))
+                    s, f = evalx._one((os.path.abspath(path), None, n, scen, over, None, None))
+                    size = json.dumps(over)
                     mk = f[f.liq.str.contains("MAKER")]
                     tk = f[f.liq.str.contains("TAKER")]
                     c = lambda x: x.mk120.sum() / max(1, x.q.abs().sum())  # noqa: E731
