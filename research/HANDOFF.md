@@ -116,3 +116,13 @@ python final_compare.py       # before/after table: base, stress, synthetic news
   throttle and this learner were all rejected.
 - **Auto-throttle** (`THROTTLE_FROM`, off): costs nothing in healthy sessions, but −104 to −135
   with a wrong model: it cuts size after calibration has already recovered.
+- **Around v10, 2026-11-07** (`research/nested_generic.py`, `charts/data/nested_v10_round.csv`):
+  - **Cap 1 tick:** base $12,431 but realistic stress $1,181 (vs $3,202), model ×−1 −$9. A through-rule
+    artefact in base.
+  - **Cap 3:** worse everywhere.
+  - **Narrower per-symbol multipliers** (HPPO/BRRY 0.75, CRRT 0.45): won every fold, +$118 stress,
+    +$117 without adverse, +$38 at 10% share. Not adopted: it is the same direction as a lower
+    make_edge, held at 1.5 because narrow edges lost more on the sandbox recording (2.5: −$320,
+    1.0: −$520, 0.5: −$631 per 13 min under stress).
+  - **make_edge:** nested CV picked 0.5, the bottom of the grid; 1.5 was adopted as the risk
+    trade-off (v10).
