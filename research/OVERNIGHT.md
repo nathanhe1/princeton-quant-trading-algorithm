@@ -86,8 +86,8 @@ markout per share vs the mid 60 s later; one sandbox session per question so far
 |---|---|---|---|---|---|
 | quote cap (0205 + 0208, arms in both orders) | cap 2 ticks (v10) | **+1.41** (+2.46, +0.46) | 286k | +4,026 | yes, in both sessions |
 | | no cap | −0.25 (−0.40, −0.18) | 303k | −760 | |
-| make_edge (0203 + 0209, both orders) | 1.5 (v10) | **−0.65** (−1.16, −0.14) | 418k | −2,716 | yes, in both sessions (better per share, +30% volume; $ about equal) |
-| | 2.5 | −0.91 (−1.66, −0.25) | 320k | −2,920 | |
+| make_edge (0203, 0209, 0211; both orders) | 1.5 (v10) | **−0.79** (−1.16, −0.14, −1.10) | 605k | −4,765 (−$367 per 5-min block) | per share yes, in all 3; in $ no: more volume at a negative markout loses more |
+| | 2.5 | −1.02 (−1.66, −0.25, −1.37) | 421k | −4,306 (−$308 per block) | |
 | size_scale (0202 + 0210, both orders) | 1.5 (v10) | −0.73 (−1.10, −0.41) | 229k | −1,675 | no clear winner: the sessions disagree (backtest: size barely matters under stress) |
 | | 0.5 | −0.76 (−2.29, +0.38) | 165k | −1,249 | |
 | takes (0207) | on (v10) | +0.16 | 204k | +327 | yes: no difference (backtest +$66/session) |
