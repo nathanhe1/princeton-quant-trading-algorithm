@@ -1,4 +1,9 @@
-"""Sandbox probe: runs strategies/alpha.py unchanged and logs what prompt 6 needs to check.
+"""Sandbox probe and competition logger: runs strategies/alpha.py unchanged and logs everything.
+
+Competition (R1/R2), no auto-stop (RUNBOOK.md):
+    PROBE_BATCHES=0 pqt run research/sandbox_probe.py:Probe --mode live --cancel-on-disconnect ...
+Every minute it logs our own markout over the last 10 minutes (fills vs the mid 60 s later).
+
 
     pqt run research/sandbox_probe.py:Probe --mode test --cancel-on-disconnect \
         --server https://sandbox.princeton-quant.com --key $PQT_API_KEY
@@ -13,14 +18,14 @@ import json
 import os
 import sys
 import time
-from collections import Counter
+from collections import Counter, deque
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "strategies"))
 from alpha import SYMS, Alpha  # noqa: E402
 
 OUT_DIR = Path(__file__).resolve().parent / "sandbox_runs"
-STOP_AFTER = int(os.environ.get("PROBE_BATCHES", "1200"))
+STOP_AFTER = int(os.environ.get("PROBE_BATCHES", "1200"))  # 0 = never stop (competition logging)
 
 
 class Probe(Alpha):
@@ -42,6 +47,8 @@ class Probe(Alpha):
         self.rejects = Counter()
         self.halted = {s: False for s in SYMS}
         self.last_wall = None
+        self.pending = deque()  # our fills waiting 120 batches to be marked
+        self.marked = deque()  # (fill batch, symbol, MAKER/TAKER, markout cents x shares, shares)
         self.emit("start", coef_mult=os.environ.get("PROBE_COEF_MULT"), override=self.params_override,
                   session=getattr(self.session, "session_id", str(self.session)),
                   params=dict(self.model_params), limits=str(self.limits),
@@ -61,6 +68,8 @@ class Probe(Alpha):
 
     def on_fill(self, f) -> None:
         super().on_fill(f)
+        self.pending.append((f.batch, f.symbol, "MAKER" if "MAKER" in str(f.liquidity) else "TAKER",
+                             f.qty if "BUY" in str(f.side) else -f.qty, f.price))
         s = f.symbol
         self.emit("fill", batch=f.batch, sym=s, side=str(f.side), px=f.price, qty=f.qty,
                   liq=str(f.liquidity), fee=f.fee_mills, pen=f.penalty_mills,
@@ -89,7 +98,30 @@ class Probe(Alpha):
         self.emit("reconnect")
 
     # ---------------------------------------------------------------- batch
+    def markout_line(self, state) -> None:
+        """Mark fills 60 s old against the mid now; every minute log the last 10 minutes' markout:
+        the closest live view of the score (the real one uses the hidden true value)."""
+        b = state.batch
+        while self.pending and self.pending[0][0] <= b - 120:
+            fb, s, liq, q, px = self.pending.popleft()
+            t = state.top[s]
+            if t.bid_px is not None and t.ask_px is not None:
+                self.marked.append((fb, s, liq, q * ((t.bid_px + t.ask_px) / 2 - px), abs(q)))
+        while self.marked and self.marked[0][0] < b - 1320:
+            self.marked.popleft()
+        if (b + 1) % 120:
+            return
+        agg = {}
+        for _, s, liq, mk, q in self.marked:
+            a = agg.setdefault((s, liq), [0.0, 0])
+            a[0] += mk
+            a[1] += q
+        parts = [f"{s} {liq[0]} {a[0] / a[1]:+.1f}c/{a[1]}" for (s, liq), a in sorted(agg.items()) if a[1]]
+        total = sum(a[0] for a in agg.values()) / 100
+        self.log.info("markout, last 10 min of fills vs mid 60 s later: $%+.0f | %s", total, " ".join(parts) or "-")
+
     def on_batch(self, state) -> None:
+        self.markout_line(state)
         wall = time.time()
         if self.first is None:
             self.first = state.batch
@@ -109,7 +141,7 @@ class Probe(Alpha):
                 os._exit(0)
             self.cancel_all()
             return
-        if n >= STOP_AFTER:
+        if STOP_AFTER and n >= STOP_AFTER:
             self.params_override = {"make_on": False, "take_on": False}
             self.cancel_all()
             self.stop_at = state.batch

@@ -31,10 +31,13 @@ fills. Estimated PnL in the GUI is **not** the score: don't react to it alone.
 cd pqt-student-kit && . .venv/bin/activate
 set -a && . ./.env && set +a              # PQT_API_KEY = algo key 1; never paste keys in chat
 pqt check --server <COMPETITION_URL> --key "$PQT_API_KEY"     # every line OK
-pqt run strategies/alpha.py --mode live --cancel-on-disconnect \
+PROBE_BATCHES=0 pqt run research/sandbox_probe.py:Probe --mode live --cancel-on-disconnect \
     --server <COMPETITION_URL> --key "$PQT_API_KEY" 2>&1 | tee -a r1.log    # r2.log for R2
 ```
 
+- This runs `alpha.py` unchanged through the logger. `PROBE_BATCHES=0` means it never stops
+  itself. Every fill, the book every batch, every news item, halt and reject go to
+  `research/sandbox_runs/<time>.jsonl`: R1's file is what we tune R2 on.
 - You can start early: it waits for the session.
 - `--cancel-on-disconnect` means our quotes are pulled if the laptop drops.
 - One member opens the trader GUI (`<COMPETITION_URL>/trade/`) and takes the **control token** for
@@ -46,6 +49,9 @@ pqt run strategies/alpha.py --mode live --cancel-on-disconnect \
 The log prints one line a minute:
 `minute N: positions | fair-micro | model weight | est PnL`.
 
+- **Markout line** (`markout, last 10 min of fills …`): our fills vs the mid 60 s later, per
+  symbol, M(aker)/T(aker), ¢/share and shares. It is the closest live view of the score. Backtest
+  norms: maker about +1 to +3¢ per symbol; taker small volume.
 - **Model weight** (0–1 per symbol) is the online calibration. Near 1 means the forecast is
   working; near 0 means it has stopped predicting this session and we are quoting around the
   microprice. Weights falling across all symbols in the first 10 minutes is the main early warning.
@@ -58,7 +64,10 @@ The log prints one line a minute:
 
 | situation | lever |
 |---|---|
-| model weights near 0 on most symbols, or our fills plainly losing | `take_on` 0, then `make_edge` 2.5 → 4 |
+| from minute 12, the markout line is negative overall two minutes running | `size_scale` 1.5 → 0.75 (sandbox: full size + takes lost, small size didn't) |
+| taker (T) markout negative on the markout line | `take_on` 0 |
+| still negative 5 minutes after cutting size | `make_edge` 2.5 → 4 |
+| model weights near 0 on most symbols | nothing by itself: calibration already shrank the model; watch the markout line |
 | one symbol misbehaving (halts, wild prints) | `pause_SYM` 1 |
 | strong human view after news, e.g. obvious good news on BNKY | `bias_BNKY` (cents) for a minute, **then back to 0** |
 | arbitrage legs filling one-sided (log lines `arb …` without all three fills) | `arb_on` 0 |
@@ -84,6 +93,11 @@ The log prints one line a minute:
 
 - The official report gives score by symbol, markout curves at 1, 10, 30 and 60 s, and realized PnL
   vs score.
+- **Our own data first:** `.venv/bin/python research/sandbox_report.py research/sandbox_runs/<R1 file>.jsonl`
+  gives markout by symbol and fill type, fill rate, rejects, each news item with the mid path
+  1–60 s after it (repricing speed), and halts. Paste R1's news headlines into
+  `tests/test_alpha_live.py::test_read_news` and check `read_news` gets them right before turning
+  `news_trade` on for R2.
 - **Compare** with the backtest:
   - maker ¢/share (backtest ~1.9¢; below ~1¢ means widen `make_edge`);
   - taker and arbitrage markout (negative means `take_on` 0 or `arb_on` 0 for R2);

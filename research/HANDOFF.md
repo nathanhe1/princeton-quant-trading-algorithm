@@ -95,3 +95,16 @@ python final_compare.py       # before/after table: base, stress, synthetic news
   `research/nested_oneside.py`): widening or pulling the side the forecast says gets picked off
   raises maker ¢/share by up to 0.13¢, but loses more volume than that. Every outer fold picked off;
   the best setting (K=3, pull) is −$68 base and −$15 realistic stress.
+- **Redesign screen, 2026-11-07** (`research/screen.py`, per-session results in
+  `charts/data/screen.csv`; paired vs v8, $/session, base / stress / stress without adverse):
+  - **Capacity:** caps 400→600 for BRRY, HPPO or both: +12…−148 / −14…−20 / −2…+7. No effect; the
+    net-exposure limit binds first.
+  - **Wider BNKY edge** (×0.75, ×1.0): −475…−893 / −112…−177 / −121…−187. **Wider CRRT edge** ×0.9:
+    −695 / −211 / −194.
+  - **Skew** ×1.5: +38 under adverse stress but −72 without it (look-ahead flattery). ×0.67 is the
+    mirror image.
+  - **Quotes** ×1.5 on HPPO and BRRY: +203 base, flat under stress.
+  - **ETF-consistent fair projection** (`ETF_PROJECT`) 0.5 / 1.0: flat, then worse.
+  - **Volatility-scaled edge** (`VOL_GAMMA`) 0.5 / 1.0: worse.
+  - **Conclusion:** v8's parameters sit at the backtest optimum. Further gains need live
+    information (R1). `ETF_PROJECT` and `VOL_GAMMA` stay in `alpha.py` at 0 (off).

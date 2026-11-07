@@ -125,6 +125,21 @@ and 7 EXPOSURE_LIMIT. No halts happened, so halt handling is still untested live
     understates, but live sets rarely complete.
   - Recycling stays on; `arb_on` stays in the GUI.
 
+- **2026-11-07, redesign review.**
+  - **Diagnostics** (`research/diag.py`):
+    - Under stress, maker ¢/share: BRRY 2.60, HPPO 1.94, CRRT 1.31, BNKY 0.67. HPPO/BRRY sit near
+      the soft cap 13–42% of the time.
+    - Results rise with session volatility (corr +0.84).
+  - **Screen** (`research/screen.py`, 13 single changes): capacity, wider edges, skew, quote size,
+    ETF-consistent fair, vol-scaled edge. None helps both stress cases (HANDOFF.md "Rejected"), so
+    v8 sits at the backtest optimum.
+  - **What's left needs live data:** news, real fill share and size, and the horizon question.
+    mk240 > mk120 everywhere, so if V leads the mid a longer target may win under the real score.
+  - **So R1 is a measurement run.** The logger (`research/sandbox_probe.py` with
+    `PROBE_BATCHES=0`) records everything and prints a rolling 10-minute own markout each minute.
+  - **The RUNBOOK trigger** (negative 10-min markout two minutes running from minute 12 → halve
+    size) fires in 0% / 4% of healthy sessions (base / stress) and 92% of wrong-model ones.
+
 ## P0: robustness, before R1 (independent of the sandbox)
 
 Accept each P0 change under the existing rules: nested CV, stress `share=0.3+through=2+adverse` as
