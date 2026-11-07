@@ -7,7 +7,8 @@
 coefs: "raw" -> fold{k}.json (old fit), "std" -> fold{k}_std.json (scaled ridge, nested-CV penalty).
 attrs: class attributes to set on the strategy; the special key COEF_MULT multiplies every fitted
 coefficient (the model-failure scenario: -0.5 wrong sign, 0 no model, 2 overconfident).
-news:  None, or dict(D=<repricing batches>, n=<items per session>, mults=(2, 4), seed=...).
+news:  None, or dict(D=<repricing batches>, n=<items per session>, mults=(2, 4), seed=...,
+       flip=True for headlines that say the opposite of the move, neutral=True for no direction).
 
 Synthetic news (the data has none). Each item moves one stock's true value by J = +/- mult x its
 typical 60 s move, at batch t; HPPO moves with its basket (1 BNKY + 2 BRRY). The recorded book and
@@ -119,7 +120,12 @@ def _one(job):
         session = shifted_session(session, shift_of(events, news["D"], session.n_batches))
     by_batch = {}
     for e in events:
-        by_batch.setdefault(e["t"], []).append(wire.NewsItem(e["id"], e["t"], f"synthetic {e['src']}", ""))
+        up = sum(e["jumps"].values()) > 0
+        if news.get("flip"):  # a misread: the headline says the opposite of what happens
+            up = not up
+        head = f"synthetic {e['src']}" if news.get("neutral") else (
+            f"{e['src']} surges on record results" if up else f"{e['src']} plunges after recall")
+        by_batch.setdefault(e["t"], []).append(wire.NewsItem(e["id"], e["t"], head, ""))
 
     original_send = v2bt._Feed.send
     msgs = []  # client messages (orders, cancels, replaces, conversions) answered to each batch

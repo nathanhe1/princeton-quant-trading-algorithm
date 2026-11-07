@@ -96,6 +96,21 @@ def test_arb_counts_split_brry_orders():
     assert b.sent == []
 
 
+
+
+
+def test_read_news():
+    from alpha import read_news
+    assert read_news("BNKY beats estimates, record quarter") == {"BNKY": (1, 1.0), "HPPO": (1, 1.0)}
+    assert read_news("BRRY recalls product") == {"BRRY": (-1, 0.75), "HPPO": (-1, 0.75)}
+    assert read_news("CRRT wins contract") == {"CRRT": (1, 0.75)}  # CRRT is not in the ETF
+    assert read_news("CRRT denies fraud allegations") == {}  # negation: unclear
+    assert read_news("CRRT shares jump but outlook weak") == {}  # both directions
+    assert read_news("BNKY and BRRY to merge") == {}  # two stocks
+    assert read_news("HPPO rebalances") == {}  # the ETF alone
+    assert read_news("Sandbox: routine notice", "news here moves nothing") == {}
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

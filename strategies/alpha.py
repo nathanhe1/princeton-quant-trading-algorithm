@@ -39,6 +39,7 @@ BRRY's split orders against the message budget. research/ROADMAP.md has the numb
 
 import json
 import math
+import re
 from collections import deque
 
 from pqt_client.v2 import BatchState, ParamKind, ParamSpec, Side, Strategy
@@ -56,6 +57,47 @@ REPORT_EVERY = 120  # one status line a minute
 COEF_JSON = r"""{"H":120,"train":["s01","s02","s03","s04","s05","s06","s07","s08","s09","s10","s11","s12","s13","s14","s15","s16","s17","s18","s19","s20","s21","s22","s23","s24"],"lags":[10,30,60,120,240],"flows":[30,120],"coef":{"HPPO":{"HPPO_r10":0.29776,"HPPO_r30":0.29611,"HPPO_r60":0.08317,"HPPO_r120":0.03809,"HPPO_r240":-0.01317,"HPPO_f30":1.01824,"HPPO_f120":1.21654,"HPPO_um":-0.94338,"BNKY_r10":0.0951,"BNKY_r30":0.12543,"BNKY_r60":-0.04674,"BNKY_r120":-0.01938,"BNKY_r240":0.00901,"BNKY_f30":0.29431,"BNKY_f120":0.07168,"BNKY_um":0.11446,"CRRT_r10":-0.15548,"CRRT_r30":-0.14718,"CRRT_r60":-0.06774,"CRRT_r120":0.09139,"CRRT_r240":-0.01869,"CRRT_f30":-0.36192,"CRRT_f120":-0.08668,"CRRT_um":0.23261,"BRRY_r10":0.01893,"BRRY_r30":0.01999,"BRRY_r60":-0.00288,"BRRY_r120":-0.00773,"BRRY_r240":0.01411,"BRRY_f30":0.64006,"BRRY_f120":0.56239,"BRRY_um":-0.07342,"gapB":-0.08381},"BNKY":{"HPPO_r10":0.08218,"HPPO_r30":0.04072,"HPPO_r60":-0.00652,"HPPO_r120":0.0211,"HPPO_r240":0.01108,"HPPO_f30":0.19284,"HPPO_f120":0.08884,"HPPO_um":-0.12963,"BNKY_r10":-0.00411,"BNKY_r30":0.33548,"BNKY_r60":0.1839,"BNKY_r120":-0.05279,"BNKY_r240":-0.01037,"BNKY_f30":-0.00246,"BNKY_f120":0.17949,"BNKY_um":-0.7473,"CRRT_r10":-0.01467,"CRRT_r30":0.00972,"CRRT_r60":0.01116,"CRRT_r120":-0.03516,"CRRT_r240":0.03542,"CRRT_f30":-0.17546,"CRRT_f120":0.0439,"CRRT_um":0.00058,"BRRY_r10":-0.00354,"BRRY_r30":-0.00929,"BRRY_r60":0.00658,"BRRY_r120":0.00029,"BRRY_r240":-0.01145,"BRRY_f30":0.19803,"BRRY_f120":-0.0748,"BRRY_um":0.01189,"gapB":0.00237},"CRRT":{"HPPO_r10":-0.0916,"HPPO_r30":-0.08193,"HPPO_r60":-0.04037,"HPPO_r120":0.01718,"HPPO_r240":-0.01318,"HPPO_f30":-0.18995,"HPPO_f120":-0.23693,"HPPO_um":0.11516,"BNKY_r10":-0.01188,"BNKY_r30":0.02577,"BNKY_r60":0.04552,"BNKY_r120":-0.01575,"BNKY_r240":0.0522,"BNKY_f30":-0.01538,"BNKY_f120":-0.01761,"BNKY_um":-0.09346,"CRRT_r10":-0.01172,"CRRT_r30":0.1345,"CRRT_r60":0.14508,"CRRT_r120":0.01751,"CRRT_r240":-0.08778,"CRRT_f30":0.11991,"CRRT_f120":0.21263,"CRRT_um":-0.87628,"BRRY_r10":-0.01167,"BRRY_r30":-0.01957,"BRRY_r60":-0.01145,"BRRY_r120":-0.02094,"BRRY_r240":-0.02976,"BRRY_f30":0.27298,"BRRY_f120":-0.14415,"BRRY_um":0.00626,"gapB":-0.06986},"BRRY":{"HPPO_r10":0.14402,"HPPO_r30":0.15499,"HPPO_r60":0.06589,"HPPO_r120":0.00925,"HPPO_r240":0.00818,"HPPO_f30":0.12778,"HPPO_f120":0.46266,"HPPO_um":-0.33903,"BNKY_r10":0.02605,"BNKY_r30":-0.11479,"BNKY_r60":-0.13689,"BNKY_r120":0.04959,"BNKY_r240":-0.02398,"BNKY_f30":0.01986,"BNKY_f120":-0.07098,"BNKY_um":0.2565,"CRRT_r10":-0.04783,"CRRT_r30":-0.08478,"CRRT_r60":-0.05371,"CRRT_r120":-0.03075,"CRRT_r240":0.02791,"CRRT_f30":0.05595,"CRRT_f120":-0.14174,"CRRT_um":0.11464,"BRRY_r10":-0.04834,"BRRY_r30":0.01364,"BRRY_r60":0.00674,"BRRY_r120":-0.04095,"BRRY_r240":-0.00016,"BRRY_f30":-0.12768,"BRRY_f120":0.44946,"BRRY_um":-0.26444,"gapB":0.49616}}}"""
 # END COEF
 MODEL = json.loads(COEF_JSON)
+
+# --- news reading (rules; switched on from the GUI with news_trade) ----------------------------
+# Typical 60 s move per symbol (cents, research/evalx.py SIGMA60): a news jump is sized in these.
+SIGMA60 = {"HPPO": 12.6, "BNKY": 4.9, "CRRT": 4.9, "BRRY": 8.2}
+TICKERS = re.compile(r"\b(HPPO|BNKY|BRRY|CRRT)\b")
+NEWS_UP = ("beat", "beats", "record", "surge", "surges", "soar", "soars", "jump", "jumps", "upgrade",
+           "upgraded", "raises", "raised", "approval", "approved", "wins", "won", "strong", "growth",
+           "profit", "rally", "rallies", "outperform", "exceeds", "boost", "boosts", "gain", "gains")
+NEWS_DOWN = ("miss", "misses", "missed", "recall", "recalls", "lawsuit", "sued", "downgrade",
+             "downgraded", "cuts", "cut", "loss", "losses", "fraud", "investigation", "probe",
+             "resigns", "delay", "delayed", "warning", "warns", "plunge", "plunges", "fall", "falls",
+             "drop", "drops", "fine", "fined", "bankruptcy", "default", "weak", "slump", "halt")
+NEGATIONS = ("no", "not", "denies", "denied", "without", "despite")
+WORD = re.compile(r"[a-z]+")
+
+
+def read_news(headline: str, body: str = "") -> dict:
+    """{symbol: (direction +1/-1, confidence 0..1)} for a confident read; {} when unclear.
+    One ticker named, keywords on one side only, no negation next to them. News on BNKY or BRRY
+    also moves HPPO (HPPO = BNKY + 2 BRRY); news naming HPPO alone or several stocks is unclear."""
+    text = f"{headline} {body}"
+    named = set(TICKERS.findall(text))
+    if len(named) != 1 or "HPPO" in named:
+        return {}
+    words = WORD.findall(text.lower())
+    up = down = 0
+    for i, w in enumerate(words):
+        hit = 1 if w in NEWS_UP else -1 if w in NEWS_DOWN else 0
+        if hit and any(n in words[max(0, i - 3):i] for n in NEGATIONS):
+            return {}  # "not a recall", "denies fraud": leave it to a human
+        up += hit > 0
+        down += hit < 0
+    if up and down or not (up or down):
+        return {}
+    d = 1 if up else -1
+    conf = min(1.0, 0.5 + 0.25 * (up + down))
+    (sym,) = named
+    out = {sym: (d, conf)}
+    if sym in ("BNKY", "BRRY"):
+        out["HPPO"] = (d, conf)
+    return out
 
 
 class Ext:
@@ -85,6 +127,9 @@ class Alpha(Strategy):
         ParamSpec("make_on", ParamKind.BOOL, 1, 0, 1),
         ParamSpec("take_on", ParamKind.BOOL, 1, 0, 1),
         ParamSpec("news_pause", ParamKind.INT, 10, 0, 240),  # batches without quotes after news
+        ParamSpec("news_trade", ParamKind.BOOL, 0, 0, 1),  # trade a confident read of the news
+        ParamSpec("news_move", ParamKind.FLOAT, 2.0, 0.0, 10.0),  # assumed jump, x typical 60 s move
+        ParamSpec("news_hold", ParamKind.INT, 60, 0, 600),  # batches the news target stays in fair
         ParamSpec("kill_floor", ParamKind.INT, 20000, 0, 1000000),  # $ realized loss; 0 = off
         # v4, ported from the PQT strategy and checked by nested CV (ANALYSIS.md appendix D)
         ParamSpec("enabled", ParamKind.BOOL, 1, 0, 1),  # 0: cancel everything and stop
@@ -123,6 +168,11 @@ class Alpha(Strategy):
     CALIB_HALFLIFE = 2400  # batches (20 min)
     CALIB_PRIOR = 1200  # batches of prior weight at slope 1
     CALIB_FULL = 1.0  # estimated slope at which the model gets full weight (k = slope / this)
+    # One-sided quoting (research, off by default): when |fair - micro| exceeds ONE_SIDE_K times the
+    # symbol's quoting edge, the side the forecast says will be picked off is widened to
+    # ONE_SIDE_WIDEN times the edge, or pulled when ONE_SIDE_WIDEN is 0.
+    ONE_SIDE_K = 0.0  # 0 = off
+    ONE_SIDE_WIDEN = 0.0
     model = MODEL
     params_override: dict | None = None  # for research sweeps
 
@@ -144,6 +194,7 @@ class Alpha(Strategy):
         self.news_batch = None  # first news batch of a pending rebase
         self.news_ref: dict[str, float] = {}  # micro just before that news
         self.rebase_at = None
+        self.news_target = {}  # symbol -> (target price, direction, last batch) from a news read
         self.seen = 0  # batches seen by this program (a late start has no history yet)
         self.horizon = int(m.get("H", 120))
         self.adj_hist = {s: deque(maxlen=self.horizon + 1) for s in SYMS}  # (adj, micro) per batch
@@ -159,6 +210,18 @@ class Alpha(Strategy):
             self.own_taker[fill.symbol] += fill.qty if fill.side == "BUY" else -fill.qty
 
     def on_news(self, item) -> None:
+        if self.param("news_trade"):
+            read = read_news(item.headline, item.body)
+            move = float(self.param("news_move"))
+            for s, (d, conf) in read.items():
+                if s not in self.ext:
+                    continue
+                ref = self.news_ref.get(s, self.ext[s].micro) if self.rebase_at is not None else self.ext[s].micro
+                j = d * conf * move * (SIGMA60[s] if s != "HPPO" else
+                                       SIGMA60["BNKY" if "BNKY" in read else "BRRY"] * (1 if "BNKY" in read else 2))
+                self.news_target[s] = (ref + j, d, item.batch + int(self.param("news_hold")))
+            if read:
+                self.log.info("news read %s: %s", item.headline, {s: v[0] for s, v in read.items()})
         pause = int(self.param("news_pause"))
         if pause > 0:
             self.log.info("news at batch %d (%s): quotes off for %d batches", item.batch, item.headline, pause)
@@ -295,6 +358,15 @@ class Alpha(Strategy):
                     adj *= self.k[s]
             # a human bias (GUI) is added after calibration: it is a view, not the model's error
             self.fair[s] = self.ext[s].micro + adj + float(self.param(f"bias_{s}"))
+            t = self.news_target.get(s)
+            if t is not None:  # until the market reaches the news target, fair sits at least there
+                target, d, until = t
+                if batch is not None and batch > until:
+                    del self.news_target[s]
+                elif d > 0:
+                    self.fair[s] = max(self.fair[s], target)
+                else:
+                    self.fair[s] = min(self.fair[s], target)
 
     # ------------------------------------------------------------------ risk
     def worst_case(self):
@@ -468,15 +540,28 @@ class Alpha(Strategy):
             if bid >= ask:
                 continue
             size = max(1, int(self.QUOTE[s] * scale))
+            bsize = asize = size
+            sig = f - x.micro
+            if self.ONE_SIDE_K and abs(sig) > self.ONE_SIDE_K * e:
+                if sig > 0:  # price expected up: our ask is the quote that gets picked off
+                    if self.ONE_SIDE_WIDEN:
+                        ask = max(math.ceil(centre + e * self.ONE_SIDE_WIDEN), x.bid + 1)
+                    else:
+                        asize = 0
+                else:
+                    if self.ONE_SIDE_WIDEN:
+                        bid = min(math.floor(centre - e * self.ONE_SIDE_WIDEN), x.ask - 1)
+                    else:
+                        bsize = 0
             # Never cross our own resting order: our messages are processed in the order sent,
             # so move the side that is getting out of the way first.
             cur_ask = min((o.price for o in self.open_orders(s) if o.side == "SELL"), default=None)
             if cur_ask is not None and bid >= cur_ask:
-                self.keep_quote(s, Side.SELL, ask, size, lw, sw)
-                self.keep_quote(s, Side.BUY, bid, size, lw, sw)
+                self.keep_quote(s, Side.SELL, ask, asize, lw, sw)
+                self.keep_quote(s, Side.BUY, bid, bsize, lw, sw)
             else:
-                self.keep_quote(s, Side.BUY, bid, size, lw, sw)
-                self.keep_quote(s, Side.SELL, ask, size, lw, sw)
+                self.keep_quote(s, Side.BUY, bid, bsize, lw, sw)
+                self.keep_quote(s, Side.SELL, ask, asize, lw, sw)
 
     def own_at_or_through(self, s, side, price) -> bool:
         """Do we rest an order on `side` that a take at `price` would trade against?"""

@@ -66,6 +66,16 @@ and 7 EXPOSURE_LIMIT. No halts happened, so halt handling is still untested live
     at the touch);
   - its message check ignored BRRY's split orders.
 
+- **2026-11-06, hardening (prompt 7).**
+  - **Fixed:** a late start or restart mid-session traded at once on no history, because `WARMUP`
+    compared the exchange's batch number instead of batches seen. It now counts batches seen.
+  - **Fixed:** `on_reconnect` lifted an active news pause.
+  - **Tests:** `research/hardening.py` replays 4 sessions with injected halts (the data has none),
+    one-sided books, a 60-batch dropout, a late start and a news burst. All 24 pass: no exception,
+    nothing sent into a visible halt or its cooldown, no RATE_LIMIT, at most 12 msgs/batch.
+  - **Runbook:** `RUNBOOK.md`. Base OOS unchanged at $6,232.
+- **Rejected: own-fill markout guard** (see HANDOFF.md "Rejected").
+
 ## P0: robustness, before R1 (independent of the sandbox)
 
 Accept each P0 change under the existing rules: nested CV, stress `share=0.3+through=2+adverse` as
@@ -145,7 +155,8 @@ volatility. Today the strategy has no defence in that scenario, and that is the 
 
 14. **Live dashboard in the trader GUI** with `self.record()`: fair − micro, rolling own markout,
     skill state, position vs cap, messages used.
-15. **Unit tests** (`tests/`): take guard, `external()` branches, `room()` and exposure bounds, news
+15. **Unit tests** (`tests/`). *Started: `tests/test_alpha_live.py` (self-trade guard, `external()`,
+    arbitrage guards); `research/hardening.py` covers halts, dropout, late start and news.* Still to add: take guard, `external()` branches, `room()` and exposure bounds, news
     pause and rebase, halt cooldown, kill switch set in `on_start`.
 16. **Sandbox mechanics retest** after every change, with `research/sandbox_probe.py` (it runs
     `alpha.py` unchanged and exits cleanly after `PROBE_BATCHES`). Judge only mechanics there: rejects,

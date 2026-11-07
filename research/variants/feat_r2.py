@@ -33,7 +33,9 @@ def raw(n):
     idx = t["HPPO"].index
     out = {}
     for s in SYMS:
-        d = t[s].ffill()
+        d = t[s].copy()
+        d.loc[d["mid"].isna(), :] = np.nan  # one-sided book: keep the last two-sided one (as live)
+        d = d.ffill()
         x = tr[tr.symbol == s]
         sq = np.where(x.aggressor == "BUY", x.qty, -x.qty)
         big = x.qty >= BIG[s]
